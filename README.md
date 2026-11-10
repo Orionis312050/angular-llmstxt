@@ -1,22 +1,25 @@
 # angular-llmstxt
 
-Version **offline et auto-contenue** du [llms.txt d'Angular](https://angular.dev/llms.txt), pensée pour les environnements fermés (knowledge base d'IA ne pouvant pas fetcher de liens externes).
+Édition **offline** de la doc Angular, à partir de https://angular.dev/llms.txt (+ contenu complet de chaque page inline).
 
-## Contenu
+## Structure
 
-- `llms.txt` : reprend la structure exacte du llms.txt officiel d'angular.dev. Chaque entrée pointe vers un fichier local de `docs/` contenant la **section inline complète** de la page (titre + URL source + texte intégral) — aucun fetch externe requis.
-- `docs/part01.md` … `docs/part09.md` (~1 Mo au total) : les 88 pages inlinées (guides components, templates, directives, signaux, DI, RxJS, HTTP, formulaires, routing, SSR, tests, animations, i18n, zoneless...), la référence CLI commande par commande, le guide de style, la sécurité, CONTRIBUTING, etc.
-- La référence API (`/api`, index de plusieurs milliers de symboles généré au build) est documentée avec le pattern d'URL des symboles individuels.
+- `llms.txt` : index de toutes les pages (liens relatifs vers `docs/`).
+- `docs/<categorie>/<feature>.md` : **une feature par fichier**, contenu complet inline.
+- Chaque dossier de catégorie contient un `_category_.json` (compatible Docusaurus).
+- Tous les cross-references sont des liens relatifs intra-dépôt : aucun fetch externe requis.
+- `script/compilers.sh` : recompile `docs/` + l'index depuis le llms.txt complet offline.
+- `script/llms.txt.part-*` : le llms.txt **complet** (88 pages inline), poussé en parties ; `script/compilers.sh` le réassemble automatiquement en `script/llms.txt`.
+
+## Utilisation (environnement fermé)
+
+```bash
+git clone <ce dépôt> && cd angular-llmstxt
+bash script/compilers.sh            # réassemble script/llms.txt puis compile docs/ + index llms.txt
+bash script/compilers.sh --reassemble   # réassemble uniquement script/llms.txt
+bash script/compilers.sh --from-docs    # reconstruit script/llms.txt depuis docs/
+```
 
 ## Source
 
-Contenu issu du dépôt officiel [`angular/angular`](https://github.com/angular/angular) (`adev/src/content`, branche `main`), résolu via la table de navigation `adev/src/app/routing/navigation-entries/index.ts`.
-
-## Utilisation
-
-Pointez votre outil/knowledge base sur le dépôt ou les fichiers raw, par exemple :
-
-```
-https://raw.githubusercontent.com/Orionis312050/angular-llmstxt/main/llms.txt
-https://raw.githubusercontent.com/Orionis312050/angular-llmstxt/main/docs/part01.md
-```
+Généré depuis `angular/angular` (`adev/src/content`, mapping via `adev/src/app/routing/navigation-entries/index.ts`), à partir de https://angular.dev/llms.txt.

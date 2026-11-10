@@ -1,0 +1,611 @@
+the same page). The `skipTransition()` method prevents the animation while still allowing the navigation to complete.
+
+## Respecting the user's motion preferences
+
+The Router runs view transitions regardless of the user's [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion) setting. A preference for reduced motion doesn't necessarily mean the user wants no motion at all, so the framework leaves the choice to the application: you can [provide more subtle animations](https://developer.chrome.com/docs/web-platform/view-transitions/same-document#react_to_the_reduced_motion_preference) for these users, or skip the transition entirely with the `onViewTransitionCreated` callback:
+
+```ts
+withViewTransitions({
+  onViewTransitionCreated: ({transition}) => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      transition.skipTransition();
+    }
+  },
+});
+```
+
+## Examples from the Chrome explainer adapted to Angular
+
+The following examples demonstrate various view transition techniques adapted from the Chrome team's documentation for use with Angular Router:
+
+### Transitioning elements don't need to be the same DOM element
+
+Elements can transition smoothly between different DOM elements as long as they share the same `view-transition-name`.
+
+- [Chrome Explainer](https://developer.chrome.com/docs/web-platform/view-transitions/same-document#transitioning_elements_dont_need_to_be_the_same_dom_element)
+- [Angular Example on StackBlitz](https://stackblitz.com/edit/stackblitz-starters-dh8npr?file=src%2Fmain.ts)
+
+### Custom entry and exit animations
+
+Create unique animations for elements entering and leaving the viewport during route transitions.
+
+- [Chrome Explainer](https://developer.chrome.com/docs/web-platform/view-transitions/same-document#custom_entry_and_exit_transitions)
+- [Angular Example on StackBlitz](https://stackblitz.com/edit/stackblitz-starters-8kly3o)
+
+### Async DOM updates and waiting for content
+
+Angular Router prioritizes immediate transitions over waiting for additional content to load.
+
+- [Chrome Explainer](https://developer.chrome.com/docs/web-platform/view-transitions/same-document#async_dom_updates_and_waiting_for_content)
+
+NOTE: Angular Router does not provide a way to delay view transitions. This design choice prevents pages from becoming non-interactive while waiting for additional content. As the Chrome documentation notes: "During this time, the page is frozen, so delays here should be kept to a minimum…in some cases it's better to avoid the delay altogether, and use the content you already have."
+
+### Handle multiple view transition styles with view transition types
+
+Use view transition types to apply different animation styles based on navigation context.
+
+- [Chrome Explainer](https://developer.chrome.com/docs/web-platform/view-transitions/same-document#view-transition-types)
+- [Angular Example on StackBlitz](https://stackblitz.com/edit/stackblitz-starters-vxzcam)
+
+### Handle multiple view transition styles with a class name on the view transition root (deprecated)
+
+This approach uses CSS classes on the transition root element to control animation styles.
+
+- [Chrome Explainer](https://developer.chrome.com/docs/web-platform/view-transitions/same-document#changing-on-navigation-type)
+- [Angular Example on StackBlitz](https://stackblitz.com/edit/stackblitz-starters-nmnzzg?file=src%2Fmain.ts)
+
+### Transitioning without freezing other animations
+
+Maintain other page animations during view transitions to create more dynamic user experiences.
+
+- [Chrome Explainer](https://developer.chrome.com/docs/web-platform/view-transitions/same-document#transitioning-without-freezing)
+- [Angular Example on StackBlitz](https://stackblitz.com/edit/stackblitz-starters-76kgww)
+
+### Animating with JavaScript
+
+Control view transitions programmatically using JavaScript APIs for complex animation scenarios.
+
+- [Chrome Explainer](https://developer.chrome.com/docs/web-platform/view-transitions/same-document#animating-with-javascript)
+- [Angular Example on StackBlitz](https://stackblitz.com/edit/stackblitz-starters-cklnkm)
+
+---
+
+### PAGE: Migrating to native CSS animations
+
+# Migrating away from Angular's Animations package
+
+The `@angular/animations` package is deprecated as of v20.2, which also introduced the new `animate.enter` and `animate.leave` feature to add animations to your application. Using these new features, you can replace all animations based on `@angular/animations` with plain CSS or JS animation libraries. Removing `@angular/animations` from your application can significantly reduce the size of your JavaScript bundle. Native CSS animations generally offer superior performance, as they can benefit from hardware acceleration. This guide walks through the process of refactoring your code from `@angular/animations` to native CSS animations.
+
+## How to write animations in native CSS
+
+If you've never written any native CSS animations, there are a number of excellent guides to get you started. Here are a few of them:  
+[MDN's CSS Animations guide](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_animations/Using_CSS_animations)  
+[W3Schools CSS3 Animations guide](https://www.w3schools.com/css/css3_animations.asp)  
+[The Complete CSS Animations Tutorial](https://www.lambdatest.com/blog/css-animations-tutorial/)  
+[CSS Animation for Beginners](https://thoughtbot.com/blog/css-animation-for-beginners)
+
+and a couple of videos:  
+[Learn CSS Animation in 9 Minutes](https://www.youtube.com/watch?v=z2LQYsZhsFw)  
+[Net Ninja CSS Animation Tutorial Playlist](https://www.youtube.com/watch?v=jgw82b5Y2MU&list=PL4cUxeGkcC9iGYgmEd2dm3zAKzyCGDtM5)
+
+Check out some of these guides and tutorials, then come back to this guide.
+
+## Creating Reusable Animations
+
+Just like with the animations package, you can create reusable animations that can be shared across your application. The animations package version of this had you using the `animation()` function in a shared typescript file. The native CSS version of this is similar, but lives in a shared CSS file.
+
+#### With Animations Package
+
+<docs-code header="animations.ts" path="adev/src/content/examples/animations/src/app/animations.1.ts" region="animation-example"/>
+
+#### With Native CSS
+
+<docs-code header="animations.css" path="adev/src/content/examples/animations/src/app/animations.css" region="animation-shared"/>
+
+Adding the class `animated-class` to an element would trigger the animation on that element.
+
+## Animating a Transition
+
+### Animating State and Styles
+
+The animations package allowed you to define various states using the [`state()`](api/animations/state) function within a component. Examples might be an `open` or `closed` state containing the styles for each respective state within the definition. For example:
+
+#### With Animations Package {#animating-state-and-styles-with-animations-package}
+
+<docs-code header="open-close.ts" path="adev/src/content/examples/animations/src/app/open-close.ts" region="state1"/>
+
+This same behavior can be accomplished natively by using CSS classes, either with a keyframe animation or transition styling.
+
+#### With Native CSS {#animating-state-and-styles-with-native-css}
+
+<docs-code header="animations.css" path="adev/src/content/examples/animations/src/app/animations.css" region="animation-states"/>
+
+Triggering the `open` or `closed` state is done by toggling classes on the element in your component. You can find examples of how to do this in our [template guide](guide/templates/binding#css-class-and-style-property-bindings).
+
+You can see similar examples in the template guide for [animating styles directly](guide/templates/binding#css-style-properties).
+
+### Transitions, Timing, and Easing
+
+The animations package `animate()` function allows for providing timing, like duration, delays and easing. This can be done natively with CSS using several css properties or shorthand properties.
+
+Specify `animation-duration`, `animation-delay`, and `animation-timing-function` for a keyframe animation in CSS, or alternatively use the `animation` shorthand property.
+
+<docs-code header="animations.css" path="adev/src/content/examples/animations/src/app/animations.css" region="animation-timing"/>
+
+Similarly, you can use `transition-duration`, `transition-delay`, and `transition-timing-function` and the `transition` shorthand for animations that are not using `@keyframes`.
+
+<docs-code header="animations.css" path="adev/src/content/examples/animations/src/app/animations.css" region="transition-timing"/>
+
+### Triggering an Animation
+
+The animations package required specifying triggers using the `trigger()` function and nesting all of your states within it. With native CSS, this is unnecessary. Animations can be triggered by toggling CSS styles or classes. Once a class is present on an element, the animation will occur. Removing the class will revert the element back to whatever CSS is defined for that element. This results in significantly less code to do the same animation. Here's an example:
+
+#### With Animations Package {#triggering-an-animation-with-animations-package}
+
+<docs-code-multifile>
+    <docs-code header="open-close.ts" path="adev/src/content/examples/animations/src/app/animations-package/open-close.ts" />
+    <docs-code header="open-close.html" path="adev/src/content/examples/animations/src/app/animations-package/open-close.html" />
+    <docs-code header="open-close.css" path="adev/src/content/examples/animations/src/app/animations-package/open-close.css"/>
+</docs-code-multifile>
+
+#### With Native CSS {#triggering-an-animation-with-native-css}
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/open-close.ts">
+    <docs-code header="open-close.ts" path="adev/src/content/examples/animations/src/app/native-css/open-close.ts" />
+    <docs-code header="open-close.html" path="adev/src/content/examples/animations/src/app/native-css/open-close.html" />
+    <docs-code header="open-close.css" path="adev/src/content/examples/animations/src/app/native-css/open-close.css"/>
+</docs-code-multifile>
+
+## Transition and Triggers
+
+### Predefined State and wildcard matching
+
+The animations package offers the ability to match your defined states to a transition via strings. For example, animating from open to closed would be `open => closed`. You can use wildcards to match any state to a target state, like `* => closed` and the `void` keyword can be used for entering and exiting states. For example: `* => void` for when an element leaves a view or `void => *` for when the element enters a view.
+
+These state matching patterns are not needed at all when animating with CSS directly. You can manage what transitions and `@keyframes` animations apply based on whatever classes you set and / or styles you set on the elements. You can also add `@starting-style` to control how the element looks upon immediately entering the DOM.
+
+### Automatic Property Calculation with Wildcards
+
+The animations package offers the ability to animate things that have been historically difficult to animate, like animating a set height to `height: auto`. You can now do this with pure CSS as well.
+
+#### With Animations Package {#automatic-property-calculation-with-animations-package}
+
+<docs-code-multifile>
+    <docs-code header="auto-height.ts" path="adev/src/content/examples/animations/src/app/animations-package/auto-height.ts" />
+    <docs-code header="auto-height.html" path="adev/src/content/examples/animations/src/app/animations-package/auto-height.html" />
+    <docs-code header="auto-height.css" path="adev/src/content/examples/animations/src/app/animations-package/auto-height.css" />
+</docs-code-multifile>
+
+You can use CSS Grid to animate to auto height.
+
+#### With Native CSS {#automatic-property-calculation-with-native-css}
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/auto-height.ts">
+    <docs-code header="auto-height.ts" path="adev/src/content/examples/animations/src/app/native-css/auto-height.ts" />
+    <docs-code header="auto-height.html" path="adev/src/content/examples/animations/src/app/native-css/auto-height.html" />
+    <docs-code header="auto-height.css" path="adev/src/content/examples/animations/src/app/native-css/auto-height.css"  />
+</docs-code-multifile>
+
+If you don't have to worry about supporting all browsers, you can also check out `calc-size()`, which is the true solution to animating auto height. See [MDN's docs](https://developer.mozilla.org/en-US/docs/Web/CSS/calc-size) and (this tutorial)[https://frontendmasters.com/blog/one-of-the-boss-battles-of-css-is-almost-won-transitioning-to-auto/] for more information.
+
+### Animate entering and leaving a view
+
+The animations package offered the previously mentioned pattern matching for entering and leaving but also included the shorthand aliases of `:enter` and `:leave`.
+
+#### With Animations Package {#enter-and-leave-with-animations-package}
+
+<docs-code-multifile>
+    <docs-code header="insert-remove.ts" path="adev/src/content/examples/animations/src/app/animations-package/insert-remove.ts" />
+    <docs-code header="insert-remove.html" path="adev/src/content/examples/animations/src/app/animations-package/insert-remove.html" />
+    <docs-code header="insert-remove.css" path="adev/src/content/examples/animations/src/app/animations-package/insert-remove.css" />
+</docs-code-multifile>
+
+#### With Native CSS {#enter-with-native-css}
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/insert.ts">
+    <docs-code header="insert.ts" path="adev/src/content/examples/animations/src/app/native-css/insert.ts" />
+    <docs-code header="insert.html" path="adev/src/content/examples/animations/src/app/native-css/insert.html" />
+    <docs-code header="insert.css" path="adev/src/content/examples/animations/src/app/native-css/insert.css"  />
+</docs-code-multifile>
+
+#### With Native CSS {#leave-with-native-css}
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/remove.ts">
+    <docs-code header="remove.ts" path="adev/src/content/examples/animations/src/app/native-css/remove.ts" />
+    <docs-code header="remove.html" path="adev/src/content/examples/animations/src/app/native-css/remove.html" />
+    <docs-code header="remove.css" path="adev/src/content/examples/animations/src/app/native-css/remove.css"  />
+</docs-code-multifile>
+
+For more information on `animate.enter` and `animate.leave`, see the [Enter and Leave animations guide](guide/animations).
+
+### Animating increment and decrement
+
+Along with the aforementioned `:enter` and `:leave`, there's also `:increment` and `:decrement`. You can animate these also by adding and removing classes. Unlike the animation package built-in aliases, there is no automatic application of classes when the values go up or down. You can apply the appropriate classes programmatically. Here's an example:
+
+#### With Animations Package {#increment-and-decrement-with-animations-package}
+
+<docs-code-multifile>
+    <docs-code header="increment-decrement.ts" path="adev/src/content/examples/animations/src/app/animations-package/increment-decrement.ts" />
+    <docs-code header="increment-decrement.html" path="adev/src/content/examples/animations/src/app/animations-package/increment-decrement.html" />
+    <docs-code header="increment-decrement.css" path="adev/src/content/examples/animations/src/app/animations-package/increment-decrement.css" />
+</docs-code-multifile>
+
+#### With Native CSS {#increment-and-decrement-with-native-css}
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/increment-decrement.ts">
+    <docs-code header="increment-decrement.ts" path="adev/src/content/examples/animations/src/app/native-css/increment-decrement.ts" />
+    <docs-code header="increment-decrement.html" path="adev/src/content/examples/animations/src/app/native-css/increment-decrement.html" />
+    <docs-code header="increment-decrement.css" path="adev/src/content/examples/animations/src/app/native-css/increment-decrement.css" />
+</docs-code-multifile>
+
+### Parent / Child Animations
+
+Unlike the animations package, when multiple animations are specified within a given component, no animation has priority over another and nothing blocks any animation from firing. Any sequencing of animations would have to be handled by your definition of your CSS animation, using animation / transition delay, and / or using `animationend` or `transitionend` to handle adding the next css to be animated.
+
+Child animations fire only within the same component template. In the `@angular/animations` package, parent animations could query and trigger animations in nested child components using `query()` and `animateChild()`. With `animate.leave` and native CSS animations, animations defined inside nested child component templates will not fire when a parent component removes an element or view. Only nested animations within the same Angular component template will execute. See the [Enter and Leave Animations guide](guide/animations#element-removal-order) for more information on this.
+
+### Disabling an animation or all animations
+
+With native CSS animations, if you'd like to disable the animations that you've specified, you have multiple options.
+
+1. Create a custom class that forces animation and transition to `none`.
+
+```css
+.no-animation {
+  animation: none !important;
+  transition: none !important;
+}
+```
+
+Applying this class to an element prevents any animation from firing on that element. You could alternatively scope this to your entire DOM or section of your DOM to enforce this behavior. However, this prevents animation events from firing. If you are awaiting animation events for element removal, this solution won't work. A workaround is to set durations to 1 millisecond instead.
+
+2. Use the [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion) media query to ensure no animations play for users that prefer less animation.
+
+3. Prevent adding animation classes programmatically
+
+### Animation Callbacks
+
+The animations package exposed callbacks for you to use in the case that you want to do something when the animation has finished. Native CSS animations also have these callbacks.
+
+[`OnAnimationStart`](https://developer.mozilla.org/en-US/docs/Web/API/Element/animationstart_event)  
+[`OnAnimationEnd`](https://developer.mozilla.org/en-US/docs/Web/API/Element/animationend_event)  
+[`OnAnimationIteration`](https://developer.mozilla.org/en-US/docs/Web/API/Element/animationiteration_event)  
+[`OnAnimationCancel`](https://developer.mozilla.org/en-US/docs/Web/API/Element/animationcancel_event)
+
+[`OnTransitionStart`](https://developer.mozilla.org/en-US/docs/Web/API/Element/transitionstart_event)  
+[`OnTransitionRun`](https://developer.mozilla.org/en-US/docs/Web/API/Element/transitionrun_event)  
+[`OnTransitionEnd`](https://developer.mozilla.org/en-US/docs/Web/API/Element/transitionend_event)  
+[`OnTransitionCancel`](https://developer.mozilla.org/en-US/docs/Web/API/Element/transitioncancel_event)
+
+The Web Animations API has a lot of additional functionality. [Take a look at the documentation](https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API) to see all the available animation APIs.
+
+NOTE: Be aware of bubbling issues with these callbacks. If you are animating children and parents, the events bubble up from children to parents. Consider stopping propagation or looking at more details within the event to determine if you're responding to the desired event target rather than an event bubbling up from a child node. You can examine the `animationname` property or the properties being transitioned to verify you have the right nodes.
+
+## Complex Sequences
+
+The animations package has built-in functionality for creating complex sequences. These sequences are all entirely possible without the animations package.
+
+### Targeting specific elements
+
+In the animations package, you could target specific elements by using the `query()` function to find specific elements by a CSS class name, similar to [`document.querySelector()`](https://developer.mozilla.org/en-US/docs/Web/API/Element/querySelector). This is unnecessary in a native CSS animation world. Instead, you can use your CSS selectors to target sub-classes and apply any desired `transform` or `animation`.
+
+To toggle classes for child nodes within a template, you can use class and style bindings to add the animations at the right points.
+
+### Stagger()
+
+The `stagger()` function allowed you to delay the animation of each item in a list of items by a specified time to create a cascade effect. You can replicate this behavior in native CSS by utilizing `animation-delay` or `transition-delay`. Here is an example of what that CSS might look like.
+
+#### With Animations Package {#stagger-with-animations-package}
+
+<docs-code-multifile>
+    <docs-code header="stagger.ts" path="adev/src/content/examples/animations/src/app/animations-package/stagger.ts" />
+    <docs-code header="stagger.html" path="adev/src/content/examples/animations/src/app/animations-package/stagger.html" />
+    <docs-code header="stagger.css" path="adev/src/content/examples/animations/src/app/animations-package/stagger.css" />
+</docs-code-multifile>
+
+#### With Native CSS {#stagger-with-native-css}
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/stagger.ts">
+    <docs-code header="stagger.ts" path="adev/src/content/examples/animations/src/app/native-css/stagger.ts" />
+    <docs-code header="stagger.html" path="adev/src/content/examples/animations/src/app/native-css/stagger.html" />
+    <docs-code header="stagger.css" path="adev/src/content/examples/animations/src/app/native-css/stagger.css" />
+</docs-code-multifile>
+
+### Parallel Animations
+
+The animations package has a `group()` function to play multiple animations at the same time. In CSS, you have full control over animation timing. If you have multiple animations defined, you can apply all of them at once.
+
+```css
+.target-element {
+  animation:
+    rotate 3s,
+    fade-in 2s;
+}
+```
+
+In this example, the `rotate` and `fade-in` animations fire at the same time.
+
+### Animating the items of a reordering list
+
+Items reordering in a list works out of the box using the previously described techniques. No additional special work is required. Items in a `@for` loop will be removed and re-added properly, which will fire off animations using `@starting-styles` for entry animations. Alternatively, you can use `animate.enter` for this same behavior. Use `animate.leave` to animate elements as they are removed, as seen in the example above.
+
+#### With Animations Package {#reordering-list-with-animations-package}
+
+<docs-code-multifile>
+    <docs-code header="reorder.ts" path="adev/src/content/examples/animations/src/app/animations-package/reorder.ts" />
+    <docs-code header="reorder.html" path="adev/src/content/examples/animations/src/app/animations-package/reorder.html" />
+    <docs-code header="reorder.css" path="adev/src/content/examples/animations/src/app/animations-package/reorder.css" />
+</docs-code-multifile>
+
+#### With Native CSS {#reordering-list-with-native-css}
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/reorder.ts">
+    <docs-code header="reorder.ts" path="adev/src/content/examples/animations/src/app/native-css/reorder.ts" />
+    <docs-code header="reorder.html" path="adev/src/content/examples/animations/src/app/native-css/reorder.html" />
+    <docs-code header="reorder.css" path="adev/src/content/examples/animations/src/app/native-css/reorder.css" />
+</docs-code-multifile>
+
+## Migrating usages of AnimationPlayer
+
+The `AnimationPlayer` class allows access to an animation to do more advanced things like pause, play, restart, and finish an animation through code. All of these things can be handled natively as well.
+
+You can retrieve animations off an element directly using [`Element.getAnimations()`](https://developer.mozilla.org/en-US/docs/Web/API/Element/getAnimations). This returns an array of every [`Animation`](https://developer.mozilla.org/en-US/docs/Web/API/Animation) on that element. You can use the `Animation` API to do much more than you could with what the `AnimationPlayer` from the animations package offered. From here you can `cancel()`, `play()`, `pause()`, `reverse()` and much more. This native API should provide everything you need to control your animations.
+
+## Route Transitions
+
+You can use view transitions to animate between routes. See the [Route Transition Animations Guide](guide/routing/route-transition-animations) to get started.
+
+---
+
+## CAT: apis
+
+### PAGE: API reference
+
+### API reference
+Source: https://angular.dev/api
+
+The API reference is an index of every public Angular API symbol, grouped by package
+(@angular/core, @angular/common, @angular/router, @angular/forms, ...).
+Individual symbols are documented at https://angular.dev/api/<symbol>
+(for example https://angular.dev/api/core/component).
+The index is generated and contains several thousand entries, so it is not inlined here;
+all guide pages linked from the table of contents below are fully inlined.
+
+---
+
+### PAGE: CLI command reference
+
+### CLI command reference
+Source: https://angular.dev/cli
+
+#### `ng `
+Command: ``
+
+
+
+#### `ng add`
+Command: `ng add <collection>`
+
+Adds support for an external library to your project.
+
+Adds the npm package for a published library to your workspace, and configures
+the project in the current working directory to use that library, as specified by the library's schematic.
+For example, adding `@angular/pwa` configures your project for PWA support:
+
+```bash
+ng add @angular/pwa
+```
+
+
+#### `ng analytics`
+Command: `ng analytics`
+
+Configures the gathering of Angular CLI usage metrics.
+
+You can help the Angular Team to prioritize features and improvements by permitting the Angular team to send command-line command usage statistics to Google.
+The Angular Team does not collect usage statistics unless you explicitly opt in. When installing the Angular CLI you are prompted to allow global collection of usage statistics.
+If you say no or skip the prompt, no data is collected.
+
+### What is collected?
+
+Usage analytics include the commands and selected flags for each execution.
+Usage analytics may include the following information:
+
+- Your operating system \(macOS, Linux distribution, Windows\) and its version.
+- Package manager name and version \(local version only\).
+- Node.js version \(local version only\).
+- Angular CLI version \(local version only\).
+- Command name that was run.
+- Workspace information, the number of application and library projects.
+- For schematics commands \(add, generate and new\), the schematic collection and name and a list of selected flags.
+- For build commands \(build, serve\), the builder name, the number and size of bundles \(initial and lazy\), compilation units, the time it took to build and rebuild, and basic Angular-specific API usage.
+
+Only Angular owned and developed schematics and builders are reported.
+Third-party schematics and builders do not send data to the Angular Team.
+
+
+#### `ng build`
+Command: `ng build [project]`
+
+Compiles an Angular application or library into an output directory named dist/ at the given output path.
+
+The command can be used to build a project of type "application" or "library".
+Depending on the project type, the CLI invokes either the application builder (`@angular/build:application`) or the library builder (`@angular/build:library`), each supporting its own set of options.
+
+The application builder uses the [esbuild](https://esbuild.github.io/) build tool, with default configuration options specified in the workspace configuration file (`angular.json`) or with a named alternative configuration.
+A "development" configuration is created by default when you use the CLI to create the project, and you can use that configuration by specifying the `--configuration development`.
+
+The configuration options generally correspond to the command options.
+You can override individual configuration defaults by specifying the corresponding options on the command line.
+The command can accept option names given in dash-case.
+Note that in the configuration file, you must specify names in camelCase.
+
+Some additional options can only be set through the configuration file,
+either by direct editing or with the `ng config` command.
+These include `assets`, `styles`, and `scripts` objects that provide runtime-global resources to include in the project.
+Resources in CSS, such as images and fonts, are automatically written to the `media` directory of the browser output
+(configurable with the `outputPath.media` option) and fingerprinted when `outputHashing` is set to `all` or `media`.
+
+For further details, see [Workspace Configuration](reference/configs/workspace-config).
+
+
+#### `ng cache`
+Command: `ng cache`
+
+Configure persistent disk cache and retrieve cache statistics.
+
+Angular CLI saves a number of cachable operations on disk by default.
+
+When you re-run the same build, the build system restores the state of the previous build and re-uses previously performed operations, which decreases the time taken to build and test your applications and libraries.
+
+To amend the default cache settings, add the `cli.cache` object to your [Workspace Configuration](reference/configs/workspace-config).
+The object goes under `cli.cache` at the top level of the file, outside the `projects` sections.
+
+```jsonc
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "cli": {
+    "cache": {
+      // ...
+    },
+  },
+  "projects": {},
+}
+```
+
+For more information, see [cache options](reference/configs/workspace-config#cache-options).
+
+### Cache environments
+
+By default, disk cache is only enabled for local environments. The value of environment can be one of the following:
+
+- `all` - allows disk cache on all machines.
+- `local` - allows disk cache only on development machines.
+- `ci` - allows disk cache only on continuous integration (CI) systems.
+
+To change the environment setting to `all`, run the following command:
+
+```bash
+ng config cli.cache.environment all
+```
+
+For more information, see `environment` in [cache options](reference/configs/workspace-config#cache-options).
+
+<div class="alert is-helpful">
+
+The Angular CLI checks for the presence and value of the `CI` environment variable to determine in which environment it is running.
+
+</div>
+
+### Cache path
+
+By default, `.angular/cache` is used as a base directory to store cache results.
+
+To change this path to `.cache/ng`, run the following command:
+
+```bash
+ng config cli.cache.path ".cache/ng"
+```
+
+
+#### `ng completion`
+Command: `ng completion`
+
+Set up Angular CLI autocompletion for your terminal.
+
+Setting up autocompletion configures your terminal, so pressing the `<TAB>` key while in the middle
+of typing will display various commands and options available to you. This makes it very easy to
+discover and use CLI commands without lots of memorization.
+
+![A demo of Angular CLI autocompletion in a terminal. The user types several partial `ng` commands,
+using autocompletion to finish several arguments and list contextual options.
+](assets/images/guide/cli/completion.gif)
+
+## Automated setup
+
+The CLI should prompt and ask to set up autocompletion for you the first time you use it (v14+).
+Simply answer "Yes" and the CLI will take care of the rest.
+
+```
+$ ng serve
+? Would you like to enable autocompletion? This will set up your terminal so pressing TAB while typing Angular CLI commands will show possible options and autocomplete arguments. (Enabling autocompletion will modify configuration files in your home directory.) Yes
+Appended `source <(ng completion script)` to `/home/my-username/.bashrc`. Restart your terminal or run:
+
+source <(ng completion script)
+
+to autocomplete `ng` commands.
+
+# Serve output...
+```
+
+If you already refused the prompt, it won't ask again. But you can run `ng completion` to
+do the same thing automatically.
+
+This modifies your terminal environment to load Angular CLI autocompletion, but can't update your
+current terminal session. Either restart it or run `source <(ng completion script)` directly to
+enable autocompletion in your current session.
+
+Test it out by typing `ng ser<TAB>` and it should autocomplete to `ng serve`. Ambiguous arguments
+will show all possible options and their documentation, such as `ng generate <TAB>`.
+
+## Manual setup
+
+Some users may have highly customized terminal setups, possibly with configuration files checked
+into source control with an opinionated structure. `ng completion` only ever appends Angular's setup
+to an existing configuration file for your current shell, or creates one if none exists. If you want
+more control over exactly where this configuration lives, you can manually set it up by having your
+shell run at startup:
+
+```bash
+if [[ $- == *i* ]]; then
+  source <(ng completion script)
+fi
+```
+
+This is equivalent to what `ng completion` will automatically set up, and gives power users more
+flexibility in their environments when desired.
+
+## Platform support
+
+Angular CLI supports autocompletion for the Bash and Zsh shells on MacOS and Linux operating
+systems. On Windows, Git Bash and [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/)
+using Bash or Zsh are supported.
+
+## Global install
+
+Autocompletion works by configuring your terminal to invoke the Angular CLI on startup to load the
+setup script. This means the terminal must be able to find and execute the Angular CLI, typically
+through a global install that places the binary on the user's `$PATH`. If you get
+`command not found: ng`, make sure the CLI is installed globally which you can do with the `-g`
+flag:
+
+```bash
+npm install -g @angular/cli
+```
+
+
+#### `ng config`
+Command: `ng config [json-path] [value]`
+
+Retrieves or sets Angular configuration values in the angular.json file for the workspace.
+
+A workspace has a single CLI configuration file, `angular.json`, at the top level.
+The `projects` object contains a configuration object for each project in the workspace.
+
+You can edit the configuration directly in a code editor,
+or indirectly on the command line using this command.
+
+The configurable property names match command option names,
+except that in the configuration file, all names must use camelCase,
+while on the command line options can be given dash-case.
+
+For further details, see [Workspace Configuration](reference/configs/workspace-config).
+
+For configuration of CLI usage analytics, see [ng analytics](cli/analytics).
+
+
+#### `ng deploy`
+Command: `ng deploy [project]`
+
+Invokes the deploy builder for a specified project, the only project with a deploy target, or the projec

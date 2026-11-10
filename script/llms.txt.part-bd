@@ -1,0 +1,269 @@
+ive to the AOT compiler is the JIT compiler which compiles templates to executable template code within the browser at runtime.
+Angular trusts template code, so dynamically generating templates and compiling them, in particular templates containing user data, circumvents Angular's built-in protections. This is a security anti-pattern.
+For information about dynamically constructing forms in a safe way, see the [Dynamic Forms](guide/forms/dynamic-forms) guide.
+
+### Server-side XSS protection
+
+HTML constructed on the server is vulnerable to injection attacks.
+Injecting template code into an Angular application is the same as injecting executable code into the application:
+It gives the attacker full control over the application.
+To prevent this, use a templating language that automatically escapes values to prevent XSS vulnerabilities on the server.
+Don't create Angular templates on the server side using a templating language. This carries a high risk of introducing template-injection vulnerabilities.
+
+## HTTP-level vulnerabilities
+
+Angular has built-in support to help prevent two common HTTP vulnerabilities, cross-site request forgery \(CSRF or XSRF\) and cross-site script inclusion \(XSSI\).
+Both of these must be mitigated primarily on the server side, but Angular provides helpers to make integration on the client side easier.
+
+### Cross-site request forgery
+
+In a cross-site request forgery \(CSRF or XSRF\), an attacker tricks the user into visiting a different web page \(such as `evil.com`\) with malignant code. This web page secretly sends a malicious request to the application's web server \(such as `example-bank.com`\).
+
+Assume the user is logged into the application at `example-bank.com`.
+The user opens an email and clicks a link to `evil.com`, which opens in a new tab.
+
+The `evil.com` page immediately sends a malicious request to `example-bank.com`.
+Perhaps it's a request to transfer money from the user's account to the attacker's account.
+The browser automatically sends the `example-bank.com` cookies, including the authentication cookie, with this request.
+
+If the `example-bank.com` server lacks XSRF protection, it can't tell the difference between a legitimate request from the application and the forged request from `evil.com`.
+
+To prevent this, the application must ensure that a user request originates from the real application, not from a different site.
+The server and client must cooperate to thwart this attack.
+
+In a common anti-XSRF technique, the application server sends a randomly created authentication token in a cookie.
+The client code reads the cookie and adds a custom request header with the token in all following requests.
+The server compares the received cookie value to the request header value and rejects the request if the values are missing or don't match.
+
+This technique is effective because all browsers implement the _same origin policy_.
+Only code from the website on which cookies are set can read the cookies from that site and set custom headers on requests to that site.
+That means only your application can read this cookie token and set the custom header.
+The malicious code on `evil.com` can't.
+
+### `HttpClient` XSRF/CSRF security
+
+`HttpClient` supports a [common mechanism](https://en.wikipedia.org/wiki/Cross-site_request_forgery#Cookie-to-header_token) used to prevent XSRF attacks. When performing HTTP requests, an interceptor reads a token from a cookie, by default `XSRF-TOKEN`, and sets it as an HTTP header, `X-XSRF-TOKEN`. Because only code that runs on your domain could read the cookie, the backend can be certain that the HTTP request came from your client application and not an attacker.
+
+By default, an interceptor sends this header on all mutating requests (such as `POST`) to relative and same origin URLs, but not on `GET` or `HEAD` requests.
+
+<docs-callout helpful title="Why not protect GET requests?">
+CSRF protection is only needed for requests that can change state on the backend. By their nature, CSRF attacks cross domain boundaries, and the web's [same-origin policy](https://developer.mozilla.org/docs/Web/Security/Same-origin_policy) will prevent an attacking page from retrieving the results of authenticated `GET` requests.
+</docs-callout>
+
+To take advantage of this, your server needs to set a token in a JavaScript readable session cookie called `XSRF-TOKEN` on either the page load or the first GET request. On subsequent requests the server can verify that the cookie matches the `X-XSRF-TOKEN` HTTP header, and therefore be sure that only code running on your domain could have sent the request. The token must be unique for each user and must be verifiable by the server; this prevents the client from making up its own tokens. Set the token to a digest of your site's authentication cookie with a salt for added security.
+
+To prevent collisions in environments where multiple Angular apps share the same domain or subdomain, give each application a unique cookie name.
+
+<docs-callout important title="HttpClient supports only the client half of the XSRF protection scheme">
+  Your backend service must be configured to set the cookie for your page, and to verify that the header is present on all eligible requests. Failing to do so renders Angular's default protection ineffective.
+</docs-callout>
+
+### Configure custom cookie/header names
+
+If your backend service uses different names for the XSRF token cookie or header, use `withXsrfConfiguration` to override the defaults.
+
+Add it to the `provideHttpClient` call as follows:
+
+```ts
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideHttpClient(
+      withXsrfConfiguration({
+        cookieName: 'CUSTOM_XSRF_TOKEN',
+        headerName: 'X-Custom-Xsrf-Header',
+      }),
+    ),
+  ],
+};
+```
+
+### Disabling XSRF protection
+
+If the built-in XSRF protection mechanism doesn't work for your application, you can disable it using the `withNoXsrfProtection` feature:
+
+```ts
+export const appConfig: ApplicationConfig = {
+  providers: [provideHttpClient(withNoXsrfProtection())],
+};
+```
+
+For information about CSRF at the Open Web Application Security Project \(OWASP\), see [Cross-Site Request Forgery (CSRF)](https://owasp.org/www-community/attacks/csrf) and [Cross-Site Request Forgery (CSRF) Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html).
+The Stanford University paper [Robust Defenses for Cross-Site Request Forgery](https://seclab.stanford.edu/websec/csrf/csrf.pdf) is a rich source of detail.
+
+See also Dave Smith's [talk on XSRF at AngularConnect 2016](https://www.youtube.com/watch?v=9inczw6qtpY 'Cross Site Request Funkery Securing Your Angular Apps From Evil Doers').
+
+### Cross-site script inclusion (XSSI)
+
+Cross-site script inclusion, also known as JSON vulnerability, can allow an attacker's website to read data from a JSON API.
+The attack works on older browsers by overriding built-in JavaScript object constructors, and then including an API URL using a `<script>` tag.
+
+This attack is only successful if the returned JSON is executable as JavaScript.
+Servers can prevent an attack by prefixing all JSON responses to make them non-executable, by convention, using the well-known string `")]}',\n"`.
+
+Angular's `HttpClient` library recognizes this convention and automatically strips the string `")]}',\n"` from all responses before further parsing.
+
+For more information, see the XSSI section of this [Google web security blog post](https://security.googleblog.com/2011/05/website-security-for-webmasters.html).
+
+## Preventing Server-Side Request Forgery (SSRF)
+
+Angular includes strict validation for `Host`, `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-Prefix`, and `X-Forwarded-Port` headers in the request handling pipeline to prevent header-based [Server-Side Request Forgery (SSRF)](https://developer.mozilla.org/en-US/docs/Web/Security/Attacks/SSRF).
+
+The validation rules are:
+
+- `Host`, `X-Forwarded-Host`, and the `host` parameter of the `Forwarded` header are validated against a strict allowlist and cannot contain path separators.
+- `X-Forwarded-Port` header must be numeric.
+- `X-Forwarded-Proto` header and the `proto` parameter of the `Forwarded` header must be `http` or `https`.
+- `X-Forwarded-Prefix` header must start with `/` and contain only alphanumeric characters, hyphens, and underscores, separated by single slashes.
+- By default, the `Forwarded` header and all `X-Forwarded-*` headers are treated as untrusted and are removed from the request. To retain them, they must be explicitly allowed by configuring `trustProxyHeaders`.
+
+Invalid headers trigger an error log, and unallowed proxy headers are removed from the request. Requests with unrecognized hostnames will result in a `400 Bad Request`.
+
+NOTE: Most cloud providers and CDN providers perform automatic validation of these headers before a request ever reaches the application origin. This inherent filtering significantly reduces the practical attack surface.
+
+### Configuring allowed hosts
+
+To allow specific hostnames, you need to add them to the allowlist. This is critical for ensuring your application works correctly and securely when deployed. The patterns support wildcards for flexible hostname matching.
+
+You can configure the `allowedHosts` option in your `angular.json`:
+
+```json {hideCopy}
+{
+  // ...
+  "projects": {
+    "your-project-name": {
+      // ...
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "security": {
+              "allowedHosts": [
+                "example.com",
+                "*.example.com" // allows all subdomains of example.com
+              ]
+            }
+            // ... other options
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+You can also configure `allowedHosts` when initializing the application engine:
+
+```typescript
+const appEngine = new AngularAppEngine({
+  allowedHosts: ['example.com', '*.trusted-example.com'],
+});
+
+const nodeAppEngine = new AngularNodeAppEngine({
+  allowedHosts: ['example.com', '*.trusted-example.com'],
+});
+```
+
+For the Node.js variant `AngularNodeAppEngine`, you can also provide `NG_ALLOWED_HOSTS` (comma-separated list) environment variable for authorizing hosts.
+
+```bash {hideDollar}
+export NG_ALLOWED_HOSTS="example.com,*.trusted-example.com"
+```
+
+IMPORTANT: You can use `*` as a value in `allowedHosts` to allow all hostnames, though this is generally discouraged and presents a security risk. Accepting any host header can expose your application to host header injection and [Server-Side Request Forgery (SSRF)](https://developer.mozilla.org/en-US/docs/Web/Security/Attacks/SSRF) attacks. This configuration should only be used when validation for `Host` and `X-Forwarded-Host` headers is performed in another layer, such as a load balancer or reverse proxy. For better security, we recommend using an explicit list of allowed hosts whenever possible. See [GHSA-x288-3778-4hhx](https://github.com/angular/angular-cli/security/advisories/GHSA-x288-3778-4hhx) for more details.
+
+### Configuring trusted proxy headers
+
+By default, Angular ignores the standard `Forwarded` header and all `X-Forwarded-*` headers. If your application is behind a trusted reverse proxy (like a load balancer) that sets these headers, you can configure Angular to trust them.
+
+If the `Forwarded` header is trusted, its `host` and `proto` parameters are extracted and take precedence over the corresponding `x-forwarded-host` and `x-forwarded-proto` headers.
+
+You can configure `trustProxyHeaders` when initializing the application engine:
+
+```typescript
+const appEngine = new AngularAppEngine({
+  trustProxyHeaders: ['forwarded'], // Trust the standard Forwarded header
+});
+
+const appEngine = new AngularAppEngine({
+  trustProxyHeaders: ['x-forwarded-host', 'x-forwarded-proto'], // Trust non-standard headers
+});
+
+const nodeAppEngine = new AngularNodeAppEngine({
+  trustProxyHeaders: true, // Trust standard Forwarded and all X-Forwarded-* headers
+});
+```
+
+For the Node.js variant `AngularNodeAppEngine`, you can also provide the `NG_TRUST_PROXY_HEADERS` environment variable (with a comma-separated list of headers as a value) to allow the usage of these headers.
+
+```bash {hideDollar}
+export NG_TRUST_PROXY_HEADERS="X-FORWARDED-HOST,X-FORWARDED-PREFIX"
+```
+
+IMPORTANT: Only enable `trustProxyHeaders` if your application is behind a trusted proxy that strictly validates or overrides these headers. Otherwise, attackers can spoof these headers to cause [Server-Side Request Forgery (SSRF)](https://developer.mozilla.org/en-US/docs/Web/Security/Attacks/SSRF) attacks.
+
+## Auditing Angular applications
+
+Angular applications must follow the same security principles as regular web applications, and must be audited as such.
+Angular-specific APIs that should be audited in a security review, such as the [_bypassSecurityTrust_](#trusting-safe-values) methods, are marked in the documentation as security sensitive.
+
+---
+
+### PAGE: Internationalization (i18n)
+
+<docs-decorative-header title="Angular Internationalization (i18n)" imgSrc="adev/src/assets/images/i18n.svg"> <!-- markdownlint-disable-line -->
+</docs-decorative-header>
+
+_Internationalization_, sometimes referenced as i18n, is the process of designing and preparing your project for use in different locales around the world.
+_Localization_ is the process of building versions of your project for different locales.
+The localization process includes the following actions.
+
+- Extract text for translation into different languages
+- Format data for a specific locale
+
+A _locale_ identifies a region in which people speak a particular language or language variant.
+Possible regions include countries and geographical regions.
+A locale determines the formatting and parsing of the following details.
+
+- Measurement units including date and time, numbers, and currencies
+- Translated names including time zones, languages, and countries
+
+For a quick introduction to localization and internationalization watch this video:
+
+<docs-video src="https://www.youtube.com/embed/KNTN-nsbV7M"/>
+
+## Learn about Angular internationalization
+
+<docs-card-container>
+  <docs-card title="Add the localize package" href="guide/i18n/add-package">
+    Learn how to add the Angular Localize package to your project
+  </docs-card>
+  <docs-card title="Refer to locales by ID" href="guide/i18n/locale-id">
+    Learn how to identify and specify a locale identifier for your project
+  </docs-card>
+  <docs-card title="Format data based on locale" href="guide/i18n/format-data-locale">
+    Learn how to implement localized data pipes and override the locale for your project
+  </docs-card>
+  <docs-card title="Prepare component for translation" href="guide/i18n/prepare">
+    Learn how to specify source text for translation
+  </docs-card>
+  <docs-card title="Work with translation files" href="guide/i18n/translation-files">
+    Learn how to review and process translation text
+  </docs-card>
+  <docs-card title="Merge translations into the application" href="guide/i18n/merge">
+    Learn how to merge translations and build your translated application
+  </docs-card>
+  <docs-card title="Deploy multiple locales" href="guide/i18n/deploy">
+    Learn how to deploy multiple locales for your application
+  </docs-card>
+  <docs-card title="Import global variants of the locale data" href="guide/i18n/import-global-variants">
+    Learn how to import locale data for language variants
+  </docs-card>
+  <docs-card title="Manage marked text with custom IDs" href="guide/i18n/manage-marked-text">
+    Learn how to implement custom IDs to help you manage your marked text
+  </docs-card>
+  <docs-card title="Internationalization example" href="guide/i18n/example">
+    Review an example of Angular internationalization.
+  </docs-card>
+</docs-card-container>
+
+---

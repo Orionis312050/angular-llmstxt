@@ -1,0 +1,764 @@
+ose = output<void>();
+
+  taxReturn = input.required<HeroTaxReturn>();
+
+  private heroTaxReturnService = inject(HeroTaxReturnService);
+
+  constructor() {
+    effect(() => {
+      this.heroTaxReturnService.taxReturn = this.taxReturn();
+    });
+  }
+
+  onCanceled() {
+    this.flashMessage('Canceled');
+    this.heroTaxReturnService.restoreTaxReturn();
+  }
+
+  onClose() {
+    this.close.emit();
+  }
+
+  onSaved() {
+    this.flashMessage('Saved');
+    this.heroTaxReturnService.saveTaxReturn();
+  }
+
+  flashMessage(msg: string) {
+    this.message = msg;
+    setTimeout(() => (this.message = ''), 500);
+  }
+}
+```
+
+The _tax-return-to-edit_ arrives by way of the `taxReturn` signal input.
+An `effect` initializes the component's own instance of the `HeroTaxReturnService` with the incoming return whenever the input changes.
+The service's getter always returns what the service says is the current state of the hero.
+The component also asks the service to save and restore this tax return.
+
+This won't work if the service is an application-wide singleton.
+Every component would share the same service instance, and each component would overwrite the tax return that belonged to another hero.
+
+To prevent this, configure the component-level injector of `HeroTaxReturnEditor` to provide the service, using the `providers` property in the component metadata.
+
+```typescript
+providers: [HeroTaxReturnService];
+```
+
+The `HeroTaxReturnEditor` has its own provider of the `HeroTaxReturnService`.
+Recall that every component _instance_ has its own injector.
+Providing the service at the component level ensures that _every_ instance of the component gets a private instance of the service. This makes sure that no tax return gets overwritten.
+
+HELPFUL: The rest of the scenario code relies on other Angular features and techniques that you can learn about elsewhere in the documentation.
+
+### Scenario: specialized providers
+
+Another reason to provide a service again at another level is to substitute a _more specialized_ implementation of that service, deeper in the component tree.
+
+For example, consider a `Car` component that includes tire service information and depends on other services to provide more details about the car.
+
+The root injector, marked as (A), uses _generic_ providers for details about `CarService` and `EngineService`.
+
+1. `Car` component (A). Component (A) displays tire service data about a car and specifies generic services to provide more information about the car.
+
+2. Child component (B). Component (B) defines its own, _specialized_ providers for `CarService` and `EngineService` that have special capabilities suitable for what's going on in component (B).
+
+3. Child component (C) as a child of Component (B). Component (C) defines its own, even _more specialized_ provider for `CarService`.
+
+```mermaid
+graph TD;
+subgraph COMPONENT_A[Component A]
+subgraph COMPONENT_B[Component B]
+COMPONENT_C[Component C]
+end
+end
+
+style COMPONENT_A fill:#BDD7EE
+style COMPONENT_B fill:#FFE699
+style COMPONENT_C fill:#A9D18E,color:#000
+classDef noShadow filter:none
+class COMPONENT_A,COMPONENT_B,COMPONENT_C noShadow
+```
+
+Behind the scenes, each component sets up its own injector with zero, one, or more providers defined for that component itself.
+
+When you resolve an instance of `Car` at the deepest component (C), its injector produces:
+
+- An instance of `Car` resolved by injector (C)
+- An `Engine` resolved by injector (B)
+- Its `Tires` resolved by the root injector (A).
+
+```mermaid
+graph BT;
+
+subgraph A[" "]
+direction LR
+RootInjector["(A) RootInjector"]
+ServicesA["CarService, EngineService, TiresService"]
+end
+
+subgraph B[" "]
+direction LR
+ParentInjector["(B) ParentInjector"]
+ServicesB["CarService2, EngineService2"]
+end
+
+subgraph C[" "]
+direction LR
+ChildInjector["(C) ChildInjector"]
+ServicesC["CarService3"]
+end
+
+direction LR
+car["(C) Car"]
+engine["(B) Engine"]
+tires["(A) Tires"]
+
+direction BT
+car-->ChildInjector
+ChildInjector-->ParentInjector-->RootInjector
+
+class car,engine,tires,RootInjector,ParentInjector,ChildInjector,ServicesA,ServicesB,ServicesC,A,B,C noShadow
+style car fill:#A9D18E,color:#000
+style ChildInjector fill:#A9D18E,color:#000
+style engine fill:#FFE699,color:#000
+style ParentInjector fill:#FFE699,color:#000
+style tires fill:#BDD7EE,color:#000
+style RootInjector fill:#BDD7EE,color:#000
+```
+
+## More on dependency injection
+
+<docs-pill-row>
+  <docs-pill href="/guide/di/defining-dependency-providers" title="DI Providers"/>
+</docs-pill-row>
+
+---
+
+### PAGE: Optimizing Injection tokens
+
+# Optimizing client application size with lightweight injection tokens
+
+This page provides a conceptual overview of a dependency injection technique that is recommended for library developers.
+Designing your library with _lightweight injection tokens_ helps optimize the bundle size of client applications that use your library.
+
+You can manage the dependency structure among your components and injectable services to optimize bundle size by using tree-shakable providers.
+This normally ensures that if a provided component or service is never actually used by the application, the compiler can remove its code from the bundle.
+
+Due to the way Angular stores injection tokens, it is possible that such an unused component or service can end up in the bundle anyway.
+This page describes a dependency injection design pattern that supports proper tree-shaking by using lightweight injection tokens.
+
+The lightweight injection token design pattern is especially important for library developers.
+It ensures that when an application uses only some of your library's capabilities, the unused code can be eliminated from the client's application bundle.
+
+When an application uses your library, there might be some services that your library supplies which the client application doesn't use.
+In this case, the application developer should expect that service to be tree-shaken, and not contribute to the size of the compiled application.
+Because the application developer cannot know about or remedy a tree-shaking problem in the library, it is the responsibility of the library developer to do so.
+To prevent the retention of unused components, your library should use the lightweight injection token design pattern.
+
+## When tokens are retained
+
+To better explain the condition under which token retention occurs, consider a library that provides a library-card component.
+This component contains a body and can contain an optional header:
+
+```html
+<lib-card>
+  <lib-header>…</lib-header>
+</lib-card>
+```
+
+In a likely implementation, the `<lib-card>` component uses `contentChild` or `contentChildren` to get `<lib-header>` and `<lib-body>`, as in the following:
+
+```ts {highlight: [14]}
+import {Component, contentChild} from '@angular/core';
+
+@Component({
+  selector: 'lib-header',
+  …,
+})
+class LibHeader {}
+
+@Component({
+  selector: 'lib-card',
+  …,
+})
+class LibCard {
+  readonly header = contentChild(LibHeader);
+}
+```
+
+Because `<lib-header>` is optional, the element can appear in the template in its minimal form, `<lib-card />`.
+In this case, `<lib-header>` is not used and you would expect it to be tree-shaken, but that is not what happens.
+This is because `LibCard` actually contains two references to the `LibHeader`:
+
+```ts
+readonly header = contentChild(LibHeader);
+```
+
+- One of these references is in the _type position_-- that is, it specifies `LibHeader` as a type: `readonly header: Signal<LibHeader|undefined>`.
+- The other reference is in the _value position_-- that is, `LibHeader` is the value passed into the `contentChild` function: `contentChild(LibHeader)`.
+
+The compiler handles token references in these positions differently:
+
+- The compiler erases _type position_ references after conversion from TypeScript, so they have no impact on tree-shaking.
+- The compiler must keep _value position_ references at runtime, which **prevents** the component from being tree-shaken.
+
+In the example, the compiler retains the `LibHeader` token that occurs in the value position.
+This prevents the referenced component from being tree-shaken, even if the application does not actually use `<lib-header>` anywhere.
+If `LibHeader` 's code, template, and styles combine to become too large, including it unnecessarily can significantly increase the size of the client application.
+
+## When to use the lightweight injection token pattern
+
+The tree-shaking problem arises when a component is used as an injection token.
+There are two cases when that can happen:
+
+- The token is used in the value position of a [content query](guide/components/queries#content-queries).
+- The token is used with the `inject` function.
+
+In the following example, both uses of the `CustomOther` token cause retention of `CustomOther`, preventing it from being tree-shaken when it is not used:
+
+```ts {highlight: [[2],[4]]}
+class App {
+  private readonly other = inject(CustomOther, {optional: true});
+
+  readonly header = contentChild(CustomOther);
+}
+```
+
+Although tokens used only as type specifiers are removed when converted to JavaScript, all tokens used for dependency injection are needed at runtime.
+When using `inject(CustomOther)`, `CustomOther` is passed as a value argument.
+The token is now in a value position, which causes the tree-shaker to keep the reference.
+
+HELPFUL: Libraries should use [tree-shakable providers](guide/di/defining-dependency-providers) for all services, providing dependencies at the root level rather than in components or modules.
+
+## Using lightweight injection tokens
+
+The lightweight injection token design pattern consists of using a small abstract class as an injection token, and providing the actual implementation at a later stage.
+The abstract class is retained, not tree-shaken, but it is small and has no material impact on the application size.
+
+The following example shows how this works for the `LibHeader`:
+
+```ts {highlight: [[1],[5], [15]]}
+abstract class LibHeaderToken {}
+
+@Component({
+  selector: 'lib-header',
+  providers: [{provide: LibHeaderToken, useExisting: LibHeader}],
+  …,
+})
+class LibHeader extends LibHeaderToken {}
+
+@Component({
+  selector: 'lib-card',
+  …,
+})
+class LibCard {
+  readonly header = contentChild(LibHeaderToken);
+}
+```
+
+In this example, the `LibCard` implementation no longer refers to `LibHeader` in either the type position or the value position.
+This lets full tree-shaking of `LibHeader` take place.
+The `LibHeaderToken` is retained, but it is only a class declaration, with no concrete implementation.
+It is small and does not materially impact the application size when retained after compilation.
+
+Instead, `LibHeader` itself implements the abstract `LibHeaderToken` class.
+You can safely use that token as the provider in the component definition, allowing Angular to correctly inject the concrete type.
+
+To summarize, the lightweight injection token pattern consists of the following:
+
+1. A lightweight injection token that is represented as an abstract class.
+2. A component definition that implements the abstract class.
+3. Injection of the lightweight pattern, using `contentChild` or `contentChildren`.
+4. A provider in the implementation of the lightweight injection token which associates the lightweight injection token with the implementation.
+
+### Use the lightweight injection token for API definition
+
+A component that injects a lightweight injection token might need to invoke a method in the injected class.
+The token is now an abstract class. Since the injectable component implements that class, you must also declare an abstract method in the abstract lightweight injection token class.
+The implementation of the method, with all its code overhead, resides in the injectable component that can be tree-shaken.
+This lets the parent communicate with the child, if it is present, in a type-safe manner.
+
+For example, the `LibCard` now queries `LibHeaderToken` rather than `LibHeader`.
+The following example shows how the pattern lets `LibCard` communicate with the `LibHeader` without actually referring to `LibHeader`:
+
+```ts {highlight: [[2],[7],[11],[19]]}
+abstract class LibHeaderToken {
+  abstract doSomething(): void;
+}
+
+@Component({
+  selector: 'lib-header',
+  providers: [{provide: LibHeaderToken, useExisting: LibHeader}],
+})
+class LibHeader extends LibHeaderToken {
+  doSomething(): void {
+    // Concrete implementation of `doSomething`
+  }
+}
+
+@Component({
+  selector: 'lib-card',
+})
+class LibCard implements AfterContentInit {
+  readonly header = contentChild(LibHeaderToken);
+
+  ngAfterContentInit(): void {
+    if (this.header() !== undefined) {
+      this.header()!.doSomething();
+    }
+  }
+}
+```
+
+In this example, the parent queries the token to get the child component, and stores the resulting component reference if it is present.
+Before calling a method in the child, the parent component checks to see if the child component is present.
+If the child component has been tree-shaken, there is no runtime reference to it, and no call to its method.
+
+### Naming your lightweight injection token
+
+Lightweight injection tokens are only useful with components.
+The [Angular Style Guide](style-guide) suggests that you name components without the suffix `Component`.
+The example `LibHeader` follows this convention.
+
+You should maintain the relationship between the component and its token while still distinguishing between them.
+The recommended style is to use the component base name with the suffix `Token` to name your lightweight injection tokens: `LibHeaderToken`.
+
+---
+
+## CAT: rxjs
+
+### PAGE: RxJS interop with Angular signals
+
+# RxJS interop with Angular signals
+
+The `@angular/core/rxjs-interop` package offers APIs that help you integrate RxJS and Angular signals.
+
+## Create a signal from an RxJS Observable with `toSignal`
+
+Use the `toSignal` function to create a signal which tracks the value of an Observable. It behaves similarly to the `async` pipe in templates, but is more flexible and can be used anywhere in an application.
+
+```angular-ts
+import {Component} from '@angular/core';
+import {AsyncPipe} from '@angular/common';
+import {interval} from 'rxjs';
+import {toSignal} from '@angular/core/rxjs-interop';
+
+@Component({
+  template: `{{ counter() }}`,
+})
+export class Ticker {
+  counterObservable = interval(1000);
+
+  // Get a `Signal` representing the `counterObservable`'s value.
+  counter = toSignal(this.counterObservable, {initialValue: 0});
+}
+```
+
+Like the `async` pipe, `toSignal` subscribes to the Observable immediately, which may trigger side effects. The subscription created by `toSignal` automatically unsubscribes from the given Observable when the component or service which calls `toSignal` is destroyed.
+
+IMPORTANT: `toSignal` creates a subscription. You should avoid calling it repeatedly for the same Observable, and instead reuse the signal it returns.
+
+### Injection context
+
+`toSignal` by default needs to run in an [injection context](guide/di/dependency-injection-context), such as during construction of a component or service. If an injection context is not available, you can manually specify the `Injector` to use instead.
+
+### Initial values
+
+Observables may not produce a value synchronously on subscription, but signals always require a current value. There are several ways to deal with this "initial" value of `toSignal` signals.
+
+#### The `initialValue` option
+
+As in the example above, you can specify an `initialValue` option with the value the signal should return before the Observable emits for the first time.
+
+#### `undefined` initial values
+
+If you don't provide an `initialValue`, the resulting signal will return `undefined` until the Observable emits. This is similar to the `async` pipe's behavior of returning `null`.
+
+#### The `requireSync` option
+
+Some Observables are guaranteed to emit synchronously, such as `BehaviorSubject`. In those cases, you can specify the `requireSync: true` option.
+
+When `requireSync` is `true`, `toSignal` enforces that the Observable emits synchronously on subscription. This guarantees that the signal always has a value, and no `undefined` type or initial value is required.
+
+### `manualCleanup`
+
+By default, `toSignal` automatically unsubscribes from the Observable when the component or service that creates it is destroyed.
+
+To override this behavior, you can pass the `manualCleanup` option. You can use this setting for Observables that complete themselves naturally.
+
+#### Custom equality comparison
+
+Some observables may emit values that are **equals** even though they differ by reference or minor detail. The `equal` option lets you define a **custom equal function** to determine when two consecutive values should be considered the same.
+
+When two emitted values are considered equal, the resulting signal **does not update**. This prevents redundant computations, DOM updates, or effects from re-running unnecessarily.
+
+```ts
+import {Component} from '@angular/core';
+import {toSignal} from '@angular/core/rxjs-interop';
+import {interval, map} from 'rxjs';
+
+@Component(/* ... */)
+export class EqualExample {
+  temperature$ = interval(1000).pipe(
+    map(() => ({temperature: Math.floor(Math.random() * 3) + 20})), // 20, 21, or 22 randomly
+  );
+
+  // Only update if the temperature changes
+  temperature = toSignal(this.temperature$, {
+    initialValue: {temperature: 20},
+    equal: (prev, curr) => prev.temperature === curr.temperature,
+  });
+}
+```
+
+### Error and Completion
+
+If an Observable used in `toSignal` produces an error, that error is thrown when the signal is read.
+
+If an Observable used in `toSignal` completes, the signal continues to return the most recently emitted value before completion.
+
+## Create an RxJS Observable from a signal with `toObservable`
+
+Use the `toObservable` utility to create an `Observable` which tracks the value of a signal. The signal's value is monitored with an `effect` which emits the value to the Observable when it changes.
+
+```ts
+import {Component, signal, Signal, inject} from '@angular/core';
+import {toObservable} from '@angular/core/rxjs-interop';
+import {switchMap} from 'rxjs';
+
+@Component(/* ... */)
+export class SearchResults {
+  query: Signal<string> = inject(QueryService).query;
+  query$ = toObservable(this.query);
+
+  results$ = this.query$.pipe(switchMap((query) => this.http.get('/search?q=' + query)));
+}
+```
+
+As the `query` signal changes, the `query$` Observable emits the latest query and triggers a new HTTP request.
+
+### Injection context {#injection-context-to-observable}
+
+`toObservable` by default needs to run in an [injection context](guide/di/dependency-injection-context), such as during construction of a component or service. If an injection context is not available, you can manually specify the `Injector` to use instead.
+
+### Timing of `toObservable`
+
+`toObservable` uses an effect to track the value of the signal in a `ReplaySubject`. On subscription, the first value (if available) may be emitted synchronously, and all subsequent values will be asynchronous.
+
+Unlike Observables, signals never provide a synchronous notification of changes. Even if you update a signal's value multiple times, `toObservable` will only emit the value after the signal stabilizes.
+
+```ts
+const obs$ = toObservable(mySignal);
+obs$.subscribe((value) => console.log(value));
+
+mySignal.set(1);
+mySignal.set(2);
+mySignal.set(3);
+```
+
+Here, only the last value (3) will be logged.
+
+## Using `rxResource` for async data
+
+Angular's [`resource` function](/guide/signals/resource) gives you a way to incorporate async data into your application's signal-based code. Building on top of this pattern, `rxResource` lets you define a resource where the source of your data is defined in terms of an RxJS `Observable`. Instead of accepting a `loader` function, `rxResource` accepts a `stream` function that returns an RxJS `Observable`.
+
+```typescript
+import {Component, inject, input} from '@angular/core';
+import {rxResource} from '@angular/core/rxjs-interop';
+
+@Component(/* ... */)
+export class UserProfile {
+  // This component relies on a service that exposes data through an RxJS Observable.
+  private userData = inject(MyUserDataClient);
+
+  protected userId = input<string>();
+
+  private userResource = rxResource({
+    params: () => ({userId: this.userId()}),
+
+    // The `stream` property expects a factory function that returns
+    // a data stream as an RxJS Observable.
+    stream: ({params}) => this.userData.load(params.userId),
+  });
+}
+```
+
+The `stream` property accepts a factory function for an RxJS `Observable`. This factory function is passed the resource's `params` value and returns an `Observable`. The resource calls this factory function every time the `params` computation produces a new value. See [Resource loaders](/guide/signals/resource#resource-loaders) for more details on the parameters passed to the factory function.
+
+In all other ways, `rxResource` behaves like and provides the same APIs as `resource` for specifying parameters, reading values, checking loading state, and examining errors.
+
+The `Observable` returned from `stream` must always emit a value or an error before it completes; see [`NG0991`](/errors/NG0991) for what happens otherwise and how to avoid it.
+
+---
+
+### PAGE: Component output interop
+
+# RxJS interop with component and directive outputs
+
+TIP: This guide assumes you're familiar with [component and directive outputs](guide/components/outputs).
+
+The `@angular/core/rxjs-interop` package offers two APIs related to component and directive outputs.
+
+## Creating an output based on an RxJS Observable
+
+The `outputFromObservable` lets you create a component or directive output that emits based on an RxJS observable:
+
+```ts {highlight:[9]}
+import {Directive} from '@angular/core';
+import {outputFromObservable} from '@angular/core/rxjs-interop';
+import {Observable} from 'rxjs';
+
+@Directive(/* ... */)
+class Draggable {
+  pointerMoves$: Observable<PointerMovements> = listenToPointerMoves();
+
+  // Whenever `pointerMoves$` emits, the `pointerMove` event fires.
+  pointerMove = outputFromObservable(this.pointerMoves$);
+}
+```
+
+The `outputFromObservable` function has special meaning to the Angular compiler. **You may only call `outputFromObservable` in component and directive property initializers.**
+
+When you `subscribe` to the output, Angular automatically forwards the subscription to the underlying observable. Angular stops forwarding values when the component or directive is destroyed.
+
+HELPFUL: Consider using `output()` directly if you can emit values imperatively.
+
+## Creating an RxJS Observable from a component or directive output
+
+The `outputToObservable` function lets you create an RxJS observable from a component output.
+
+```ts {highlight:[11]}
+import {outputToObservable} from '@angular/core/rxjs-interop';
+import {Component, output} from '@angular/core';
+
+@Component(/*...*/)
+class CustomSlider {
+    valueChange = output<number>();
+}
+
+// Instance reference to `CustomSlider`.
+const slider: CustomSlider = createSlider();
+
+outputToObservable(slider.valueChange) // Observable<number>
+    .pipe(...)
+    .subscribe(...);
+```
+
+HELPFUL: Consider using the `subscribe` method on `OutputRef` directly if it meets your needs.
+
+---
+
+## CAT: loading-data
+
+### PAGE: HttpClient overview
+
+# Understanding communication with backend services using HTTP
+
+Most front-end applications need to communicate with a server over the HTTP protocol to download or upload data and access other back-end services. Angular provides a client HTTP API for Angular applications, the `HttpClient` service class in `@angular/common/http`.
+
+## HTTP client service features
+
+The HTTP client service offers the following major features:
+
+- The ability to request [typed response values](guide/http/making-requests#fetching-json-data)
+- Streamlined [error handling](guide/http/making-requests#handling-request-failure)
+- Request and response [interception](guide/http/interceptors)
+- Robust [testing utilities](guide/http/testing)
+
+## What's next
+
+<docs-pill-row>
+  <docs-pill href="guide/http/setup" title="Setting up HttpClient"/>
+  <docs-pill href="guide/http/making-requests" title="Making HTTP requests"/>
+</docs-pill-row>
+
+---
+
+### PAGE: Setting up the HttpClient
+
+# Setting up `HttpClient`
+
+`HttpClient` is available for injection by default in Angular v21 and later.
+
+## Providing `HttpClient` through dependency injection
+
+You can use the `provideHttpClient` helper function to configure the default HTTP feature set or add features in the application `providers` in `app.config.ts`.
+
+```ts
+export const appConfig: ApplicationConfig = {
+  providers: [provideHttpClient(/* add features here, such as withInterceptors(...) */)],
+};
+```
+
+If your app is using NgModule-based bootstrap instead, you can include `provideHttpClient` in the providers of your app's NgModule to configure the default HTTP feature set or add features:
+
+```ts
+@NgModule({
+  providers: [provideHttpClient(/* add features here, such as withInterceptors(...) */)],
+  // ... other application configuration
+})
+export class AppModule {}
+```
+
+You can then inject the `HttpClient` service as a dependency of your components, services, or other classes:
+
+```ts
+@Service()
+export class ConfigService {
+  private http = inject(HttpClient);
+  // This service can now make HTTP requests via `this.http`.
+}
+```
+
+## Configuring features of `HttpClient`
+
+`provideHttpClient` accepts a list of optional feature configurations to enable or configure different aspects of the client. This section details the optional features and their usage.
+
+### `withXhr`
+
+```ts
+export const appConfig: ApplicationConfig = {
+  providers: [provideHttpClient(withXhr())],
+};
+```
+
+By default, `HttpClient` uses the [`fetch`](https://developer.mozilla.org/docs/Web/API/Fetch_API) API to make requests. The `withXhr` feature switches the client to use the [`XMLHttpRequest`](https://developer.mozilla.org/docs/Web/API/XMLHttpRequest) API instead.
+
+`fetch` is a more modern API and is available in a few environments where `XMLHttpRequest` is not supported. It does have a few limitations, such as not producing upload progress events.
+
+<docs-callout critical title="Do not use `withXhr` in server-side rendering (SSR) environments">
+
+XHR support on the server is **deprecated** and is intended to be removed in Angular 23. The underlying `xhr2` library does not safely handle redirects: it can forward `Authorization` headers on cross-origin redirects and is susceptible to denial-of-service (DoS) via redirect loops. For SSR applications, use the default `fetch` backend instead.
+
+</docs-callout>
+
+### `withInterceptors(...)`
+
+`withInterceptors` configures the set of interceptor functions which will process requests made through `HttpClient`. See the [interceptor guide](guide/http/interceptors) for more information.
+
+### `withInterceptorsFromDi()`
+
+`withInterceptorsFromDi` includes the older style of class-based interceptors in the `HttpClient` configuration. See the [interceptor guide](guide/http/interceptors) for more information.
+
+HELPFUL: Functional interceptors (through `withInterceptors`) have more predictable ordering and we recommend them over DI-based interceptors.
+
+### `withRequestsMadeViaParent()`
+
+By default, when you configure `HttpClient` using `provideHttpClient` within a given injector, this configuration overrides any configuration for `HttpClient` which may be present in the parent injector.
+
+When you add `withRequestsMadeViaParent()`, `HttpClient` is configured to instead pass requests up to the `HttpClient` instance in the parent injector, once they've passed through any configured interceptors at this level. This is useful if you want to _add_ interceptors in a child injector while still sending the request through the parent injector's interceptors.
+
+CRITICAL: You must configure an instance of `HttpClient` above the current injector, or this option is not valid and you'll get a runtime error when you try to use it.
+
+### `withJsonpSupport()`
+
+<docs-callout critical title="JSONP is deprecated">
+
+`withJsonpSupport`, `HttpClientJsonpModule`, and the `.jsonp()` method on `HttpClient` are deprecated because JSONP can cause cross-site scripting (XSS) vulnerabilities. Use standard HTTP requests with [CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS) instead.
+
+</docs-callout>
+
+Including `withJsonpSupport` enables the `.jsonp()` method on `HttpClient`, which makes a GET request via the [JSONP convention](https://en.wikipedia.org/wiki/JSONP) for cross-domain loading of data.
+
+HELPFUL: Prefer using [CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS) to make cross-domain requests instead of JSONP when possible.
+
+### `withXsrfConfiguration(...)`
+
+Including this option allows customization of `HttpClient`'s built-in XSRF security functionality. See the [security guide](best-practices/security) for more information.
+
+### `withNoXsrfProtection()`
+
+Including this option disables `HttpClient`'s built-in XSRF security functionality. See the [security guide](best-practices/security) for more information.
+
+## `HttpClientModule`-based configuration
+
+Some applications may configure `HttpClient` using the older API based on NgModules.
+
+This table lists the NgModules available from `@angular/common/http` and how they relate to the provider configuration functions above.
+
+| **NgModule**                            | `provideHttpClient()` equivalent                         |
+| --------------------------------------- | -------------------------------------------------------- |
+| `HttpClientModule`                      | `provideHttpClient(withInterceptorsFromDi(), withXhr())` |
+| `HttpClientJsonpModule` (deprecated)    | `withJsonpSupport()` (deprecated)                        |
+| `HttpClientXsrfModule.withOptions(...)` | `withXsrfConfiguration(...)`                             |
+| `HttpClientXsrfModule.disable()`        | `withNoXsrfProtection()`                                 |
+
+NOTE: `HttpClientModule` and `HttpClientXsrfModule` are also deprecated. Use `provideHttpClient` with the corresponding features instead.
+
+<docs-callout important title="Use caution when using HttpClientModule in multiple injectors">
+When `HttpClientModule` is present in multiple injectors, the behavior of interceptors is poorly defined and depends on the exact options and provider/import ordering.
+
+Prefer `provideHttpClient` for multi-injector configurations, as it has more stable behavior. See the `withRequestsMadeViaParent` feature above.
+</docs-callout>
+
+---
+
+### PAGE: Making requests
+
+# Making HTTP requests
+
+`HttpClient` has methods corresponding to the different HTTP verbs used to make requests, both to load data and to apply mutations on the server. Each method returns an [RxJS `Observable`](https://rxjs.dev/guide/observable) which, when subscribed, sends the request and then emits the results when the server responds.
+
+NOTE: `Observable`s created by `HttpClient` may be subscribed any number of times and will make a new backend request for each subscription.
+
+Through an options object passed to the request method, various properties of the request and the returned response type can be adjusted.
+
+## Fetching JSON data
+
+Fetching data from a backend often requires making a GET request using the [`HttpClient.get()`](api/common/http/HttpClient#get) method. This method takes two arguments: the string endpoint URL from which to fetch, and an _optional options_ object to configure the request.
+
+For example, to fetch configuration data from a hypothetical API using the `HttpClient.get()` method:
+
+```ts
+http.get<Config>('/api/config').subscribe((config) => {
+  // process the configuration.
+});
+```
+
+Note the generic type argument which specifies that the data returned by the server will be of type `Config`. This argument is optional, and if you omit it, the returned data will have type `Object`.
+
+TIP: When dealing with data of uncertain structure and potential `undefined` or `null` values, consider using the `unknown` type instead of `Object` as the response type.
+
+CRITICAL: The generic type of request methods is a type **assertion** about the data returned by the server. `HttpClient` does not verify that the actual return data matches this type.
+
+## Fetching other types of data
+
+By default, `HttpClient` assumes that servers will return JSON data. When interacting with a non-JSON API, you can tell `HttpClient` what response type to expect when making the request. This is done with the `responseType` option.
+
+| **`responseType` value** | **Returned response type**                                                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `'json'` (default)       | JSON data of the given generic type                                                                                                       |
+| `'text'`                 | string data                                                                                                                               |
+| `'arraybuffer'`          | [`ArrayBuffer`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) containing the raw response bytes |
+| `'blob'`                 | [`Blob`](https://developer.mozilla.org/docs/Web/API/Blob) instance                                                                        |
+
+For example, you can ask `HttpClient` to download the raw bytes of a `.jpeg` image into an `ArrayBuffer`:
+
+```ts
+http.get('/images/dog.jpg', {responseType: 'arraybuffer'}).subscribe((buffer) => {
+  console.log('The image is ' + buffer.byteLength + ' bytes large');
+});
+```
+
+<docs-callout important title="Literal value for `responseType`">
+Because the value of `responseType` affects the type returned by `HttpClient`, it must have a literal type and not a `string` type.
+
+This happens automatically if the options object passed to the request method is a literal object, but if you're extracting the request options out into a variable or helper method you might need to explicitly specify it as a literal, such as `responseType: 'text' as const`.
+</docs-callout>
+
+## Mutating server state
+
+Server APIs that perform mutations often require making POST requests with a request body specifying the new state or the change to be made.
+
+The [`HttpClient.post()`](api/common/http/HttpClient#post) method behaves similarly to `get()`, and accepts an additional `body` argument before its options:
+
+```ts
+http.post<Config>('/api/config', newConfig).subscribe((config) => {
+  console.log('Updated config:', config);
+});
+```
+
+Many different types of values can be provided as the request's `body`, and `HttpClient` will serialize them accordingly:
+
+| **`body` type**                                                                                                               | **Ser

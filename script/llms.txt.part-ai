@@ -1,0 +1,1013 @@
+   end
+    end
+```
+
+In the example above:
+
+1. `SocialApp` can provide values for `UserProfile` and `FriendList`
+2. `FriendList` can provide values for injection to `FriendEntry`, but cannot provide values for injection in `UserProfile` because it's not part of the tree
+
+## Declaring a provider
+
+Think of Angular's dependency injection system as a hash map or dictionary. Each provider configuration object defines a key-value pair:
+
+- **Key (Provider identifier)**: The unique identifier you use to request a dependency
+- **Value**: What Angular should return when that token is requested
+
+When manually providing dependencies, you typically see this shorthand syntax:
+
+```angular-ts
+import {Component} from '@angular/core';
+import {LocalService} from './local-service';
+
+@Component({
+  selector: 'app-example',
+  providers: [LocalService], // Service without providedIn
+})
+export class Example {}
+```
+
+This is actually a shorthand for a more detailed provider configuration:
+
+```ts
+{
+  // This is the shorthand version
+  providers: [LocalService],
+
+  // This is the full version
+  providers: [
+    { provide: LocalService, useClass: LocalService }
+  ]
+}
+```
+
+### Provider configuration object
+
+Every provider configuration object has two primary parts:
+
+1. **Provider identifier**: The unique key that Angular uses to get the dependency (set via the `provide` property)
+2. **Value**: The actual dependency that you want Angular to fetch, configured with different keys based on the desired type:
+   - `useClass` - Provides a JavaScript class
+   - `useValue` - Provides a static value
+   - `useFactory` - Provides a factory function that returns the value
+   - `useExisting` - Provides an alias to an existing provider
+
+### Provider identifiers
+
+Provider identifiers allow Angular's dependency injection (DI) system to retrieve a dependency through a unique ID. You can generate provider identifiers in two ways:
+
+1. [Class names](#class-names)
+2. [Injection tokens](#injection-tokens)
+
+#### Class names
+
+Class names use the imported class directly as the identifier:
+
+```angular-ts
+import {Component} from '@angular/core';
+import {LocalService} from './local-service';
+
+@Component({
+  selector: 'app-example',
+  providers: [{provide: LocalService, useClass: LocalService}],
+})
+export class Example {
+  /* ... */
+}
+```
+
+The class serves as both the identifier and the implementation, which is why Angular provides the shorthand `providers: [LocalService]`.
+
+#### Injection tokens
+
+Angular provides a built-in [`InjectionToken`](api/core/InjectionToken) class that creates a unique object reference for injectable values or when you want to provide multiple implementations of the same interface.
+
+```ts {header: "/app/tokens.ts"}
+import {InjectionToken} from '@angular/core';
+import {DataService} from './data-service.interface';
+
+export const DATA_SERVICE_TOKEN = new InjectionToken<DataService>('DataService');
+```
+
+NOTE: The string `'DataService'` is a description used purely for debugging purposes. Angular identifies the token by its object reference, not this string.
+
+Use the token in your provider configuration:
+
+```angular-ts
+import {Component, inject} from '@angular/core';
+import {LocalDataService} from './local-data-service';
+import {DATA_SERVICE_TOKEN} from './tokens';
+
+@Component({
+  selector: 'app-example',
+  providers: [{provide: DATA_SERVICE_TOKEN, useClass: LocalDataService}],
+})
+export class Example {
+  private dataService = inject(DATA_SERVICE_TOKEN);
+}
+```
+
+#### Can TypeScript interfaces be identifiers for injection?
+
+TypeScript interfaces cannot be used for injection because they don't exist at runtime:
+
+```ts
+// ❌ This won't work!
+interface DataService {
+  getData(): string[];
+}
+
+// Interfaces disappear after TypeScript compilation
+@Component({
+  providers: [
+    {provide: DataService, useClass: LocalDataService}, // Error!
+  ],
+})
+export class Example {
+  private dataService = inject(DataService); // Error!
+}
+
+// ✅ Use InjectionToken instead
+export const DATA_SERVICE_TOKEN = new InjectionToken<DataService>('DataService');
+
+@Component({
+  providers: [{provide: DATA_SERVICE_TOKEN, useClass: LocalDataService}],
+})
+export class Example {
+  private dataService = inject(DATA_SERVICE_TOKEN); // Works!
+}
+```
+
+The InjectionToken provides a runtime value that Angular's DI system can use, while still maintaining type safety through TypeScript's generic type parameter.
+
+### Provider value types
+
+#### useClass
+
+`useClass` provides a JavaScript class as a dependency. This is the default when using the shorthand syntax:
+
+```ts
+// Shorthand
+providers: [DataService];
+
+// Full syntax
+providers: [{provide: DataService, useClass: DataService}];
+
+// Different implementation
+providers: [{provide: DataService, useClass: MockDataService}];
+
+// Conditional implementation
+providers: [
+  {
+    provide: StorageService,
+    useClass: environment.production ? CloudStorageService : LocalStorageService,
+  },
+];
+```
+
+#### Practical example: Logger substitution
+
+You can substitute implementations to extend functionality:
+
+```ts
+import {Injectable, Component, inject} from '@angular/core';
+
+// Base logger
+@Injectable()
+export class Logger {
+  log(message: string) {
+    console.log(message);
+  }
+}
+
+// Enhanced logger with timestamp
+@Injectable()
+export class BetterLogger extends Logger {
+  override log(message: string) {
+    super.log(`[${new Date().toISOString()}] ${message}`);
+  }
+}
+
+// Logger that includes user context
+@Injectable()
+export class EvenBetterLogger extends Logger {
+  private userService = inject(UserService);
+
+  override log(message: string) {
+    const name = this.userService.user.name;
+    super.log(`Message to ${name}: ${message}`);
+  }
+}
+
+// In your component
+@Component({
+  selector: 'app-example',
+  providers: [
+    UserService, // EvenBetterLogger needs this
+    {provide: Logger, useClass: EvenBetterLogger},
+  ],
+})
+export class Example {
+  private logger = inject(Logger); // Gets EvenBetterLogger instance
+}
+```
+
+#### useValue
+
+`useValue` provides any JavaScript data type as a static value:
+
+```ts
+providers: [
+  {provide: API_URL_TOKEN, useValue: 'https://api.example.com'},
+  {provide: MAX_RETRIES_TOKEN, useValue: 3},
+  {provide: FEATURE_FLAGS_TOKEN, useValue: {darkMode: true, beta: false}},
+];
+```
+
+IMPORTANT: TypeScript types and interfaces cannot serve as dependency values. They exist only at compile-time.
+
+#### Practical example: Application configuration
+
+A common use case for `useValue` is providing application configuration:
+
+```ts
+// Define configuration interface
+export interface AppConfig {
+  apiUrl: string;
+  appTitle: string;
+  features: {
+    darkMode: boolean;
+    analytics: boolean;
+  };
+}
+
+// Create injection token
+export const APP_CONFIG = new InjectionToken<AppConfig>('app.config');
+
+// Define configuration
+const appConfig: AppConfig = {
+  apiUrl: 'https://api.example.com',
+  appTitle: 'My Application',
+  features: {
+    darkMode: true,
+    analytics: false,
+  },
+};
+
+// Provide in bootstrap
+bootstrapApplication(AppComponent, {
+  providers: [{provide: APP_CONFIG, useValue: appConfig}],
+});
+
+// Use in component
+@Component({
+  selector: 'app-header',
+  template: `<h1>{{ title }}</h1>`,
+})
+export class Header {
+  private config = inject(APP_CONFIG);
+  title = this.config.appTitle;
+}
+```
+
+#### useFactory
+
+`useFactory` provides a function that generates a new value for injection:
+
+```ts
+export const loggerFactory = (config: AppConfig) => {
+  return new LoggerService(config.logLevel, config.endpoint);
+};
+
+providers: [
+  {
+    provide: LoggerService,
+    useFactory: loggerFactory,
+    deps: [APP_CONFIG], // Dependencies for the factory function
+  },
+];
+```
+
+You can mark factory dependencies as optional:
+
+```ts
+import {Optional} from '@angular/core';
+
+providers: [
+  {
+    provide: MyService,
+    useFactory: (required: RequiredService, optional?: OptionalService) => {
+      return new MyService(required, optional || new DefaultService());
+    },
+    deps: [RequiredService, [new Optional(), OptionalService]],
+  },
+];
+```
+
+#### Practical example: Configuration-based API client
+
+Here's a complete example showing how to use a factory to create a service with runtime configuration:
+
+```ts
+// Service that needs runtime configuration
+class ApiClient {
+  constructor(
+    private http: HttpClient,
+    private baseUrl: string,
+    private rateLimitMs: number,
+  ) {}
+
+  async fetchData(endpoint: string) {
+    // Apply rate limiting based on user tier
+    await this.applyRateLimit();
+    return this.http.get(`${this.baseUrl}/${endpoint}`);
+  }
+
+  private async applyRateLimit() {
+    // Simplified example - real implementation would track request timing
+    return new Promise((resolve) => setTimeout(resolve, this.rateLimitMs));
+  }
+}
+
+// Factory function that configures based on user tier
+import {inject, Component} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+const apiClientFactory = () => {
+  const http = inject(HttpClient);
+  const userService = inject(UserService);
+
+  // Assuming userService provides these values
+  const baseUrl = userService.getApiBaseUrl();
+  const rateLimitMs = userService.getRateLimit();
+
+  return new ApiClient(http, baseUrl, rateLimitMs);
+};
+
+// Provider configuration
+export const apiClientProvider = {
+  provide: ApiClient,
+  useFactory: apiClientFactory,
+};
+
+// Usage in component
+@Component({
+  selector: 'app-dashboard',
+  providers: [apiClientProvider],
+})
+export class Dashboard {
+  private apiClient = inject(ApiClient);
+}
+```
+
+#### useExisting
+
+`useExisting` creates an alias for a provider that was already defined. Both tokens return the same instance:
+
+```ts
+providers: [
+  NewLogger, // The actual service
+  {provide: OldLogger, useExisting: NewLogger}, // The alias
+];
+```
+
+IMPORTANT: Don't confuse `useExisting` with `useClass`. `useClass` creates separate instances, while `useExisting` ensures you get the same singleton instance.
+
+### Multiple providers
+
+Use the `multi: true` flag when multiple providers contribute values to the same token:
+
+```ts
+export const INTERCEPTOR_TOKEN = new InjectionToken<Interceptor[]>('interceptors');
+
+providers: [
+  {provide: INTERCEPTOR_TOKEN, useClass: AuthInterceptor, multi: true},
+  {provide: INTERCEPTOR_TOKEN, useClass: LoggingInterceptor, multi: true},
+  {provide: INTERCEPTOR_TOKEN, useClass: RetryInterceptor, multi: true},
+];
+```
+
+When you inject `INTERCEPTOR_TOKEN`, you'll receive an array containing instances of all three interceptors.
+
+## Where can you specify providers?
+
+Angular offers several levels where you can register providers, each with different implications for scope, lifecycle, and performance:
+
+- [**Application bootstrap**](#application-bootstrap) - Global singletons available everywhere
+- [**On an element (component or directive)**](#component-or-directive-providers) - Isolated instances for specific component trees
+- [**Route**](#route-providers) - Feature-specific services for lazy-loaded modules
+
+### Application bootstrap
+
+Use application-level providers in `bootstrapApplication` when:
+
+- **The service is used across multiple feature areas** - Services like HTTP clients, logging, or authentication that many parts of your app need
+- **You want a true singleton** - One instance shared by the entire application
+- **The service has no component-specific configuration** - General-purpose utilities that work the same everywhere
+- **You're providing global configuration** - API endpoints, feature flags, or environment settings
+
+```ts {header: "main.ts"}
+bootstrapApplication(App, {
+  providers: [
+    {provide: API_BASE_URL, useValue: 'https://api.example.com'},
+    {provide: INTERCEPTOR_TOKEN, useClass: AuthInterceptor, multi: true},
+    LoggingService, // Used throughout the app
+    {provide: ErrorHandler, useClass: GlobalErrorHandler},
+  ],
+});
+```
+
+**Benefits:**
+
+- Single instance reduces memory usage
+- Available everywhere without additional setup
+- Easier to manage global state
+
+**Drawbacks:**
+
+- Always included in your JavaScript bundle, even if the value is never injected
+- Cannot be easily customized per feature
+- Harder to test individual components in isolation
+
+#### Why provide during bootstrap instead of using `providedIn: 'root'`?
+
+You might want a provider during bootstrap when:
+
+- The provider has side-effects (e.g., installing the client-side router)
+- The provider requires configuration (e.g., routes)
+- You're using Angular's `provideSomething` pattern (e.g., `provideRouter`, `provideHttpClient`)
+
+### Component or directive providers
+
+Use component or directive providers when:
+
+- **The service has component-specific state** - Form validators, component-specific caches, or UI state managers
+- **You need isolated instances** - Each component needs its own copy of the service
+- **The service is only used by one component tree** - Specialized services that don't need global access
+- **You're creating reusable components** - Components that should work independently with their own services
+
+```angular-ts
+// Specialized form component with its own validation service
+@Component({
+  selector: 'app-advanced-form',
+  providers: [
+    FormValidationService, // Each form gets its own validator
+    {provide: FORM_CONFIG, useValue: {strictMode: true}},
+  ],
+})
+export class AdvancedForm {}
+
+// Modal component with isolated state management
+@Component({
+  selector: 'app-modal',
+  providers: [
+    ModalStateService, // Each modal manages its own state
+  ],
+})
+export class Modal {}
+```
+
+**Benefits:**
+
+- Better encapsulation and isolation
+- Easier to test components individually
+- Multiple instances can coexist with different configurations
+
+**Drawbacks:**
+
+- New instance created for each component (higher memory usage)
+- No shared state between components
+- Must be provided wherever needed
+- Always included in the same JavaScript bundle as the component or directive, even if the value is never injected
+
+NOTE: If multiple directives on the same element provide the same token, one will win, but which one is undefined.
+
+### Route providers
+
+Use route-level providers for:
+
+- **Feature-specific services** - Services only needed for particular routes or feature modules
+- **Lazy-loaded module dependencies** - Services that should only load with specific features
+- **Route-specific configuration** - Settings that vary by application area
+
+```ts {header: "routes.ts"}
+export const routes: Routes = [
+  {
+    path: 'admin',
+    providers: [
+      AdminService, // Only loaded with admin routes
+      {provide: FEATURE_FLAGS, useValue: {adminMode: true}},
+    ],
+    loadChildren: () => import('./admin/admin.routes'),
+  },
+  {
+    path: 'shop',
+    providers: [
+      ShoppingCartService, // Isolated shopping state
+      PaymentService,
+    ],
+    loadChildren: () => import('./shop/shop.routes'),
+  },
+];
+```
+
+Services provided at the route level are available to all components and directives within that route, as well as to its guards and resolvers.
+
+Since these services are instantiated independently of the route’s components, they do not have direct access to route-specific information.
+
+## Library author patterns
+
+When creating Angular libraries, you often need to provide flexible configuration options for consumers while maintaining clean APIs. Angular's own libraries demonstrate powerful patterns for achieving this.
+
+### The `provide` pattern
+
+Instead of requiring users to manually configure complex providers, library authors can export functions that return provider configurations:
+
+```ts {header: "/libs/analytics/src/providers.ts"}
+import {InjectionToken, Provider, inject} from '@angular/core';
+
+// Configuration interface
+export interface AnalyticsConfig {
+  trackingId: string;
+  enableDebugMode?: boolean;
+  anonymizeIp?: boolean;
+}
+
+// Internal token for configuration
+const ANALYTICS_CONFIG = new InjectionToken<AnalyticsConfig>('analytics.config');
+
+// Main service that uses the configuration
+export class AnalyticsService {
+  private config = inject(ANALYTICS_CONFIG);
+
+  track(event: string, properties?: any) {
+    // Implementation using config
+  }
+}
+
+// Provider function for consumers
+export function provideAnalytics(config: AnalyticsConfig): Provider[] {
+  return [{provide: ANALYTICS_CONFIG, useValue: config}, AnalyticsService];
+}
+```
+
+```ts {header: "main.ts"}
+// Usage in consumer app
+bootstrapApplication(App, {
+  providers: [
+    provideAnalytics({
+      trackingId: 'GA-12345',
+      enableDebugMode: !environment.production,
+    }),
+  ],
+});
+```
+
+### Advanced provider patterns with options
+
+For more complex scenarios, you can combine multiple configuration approaches:
+
+```ts {header: "/libs/http-client/src/provider.ts"}
+import {Provider, InjectionToken, inject} from '@angular/core';
+import {bootstrapApplication} from '@angular/platform-browser';
+
+// Feature flags for optional functionality
+export enum HttpFeatures {
+  Interceptors = 'interceptors',
+  Caching = 'caching',
+  Retry = 'retry',
+}
+
+// Configuration interfaces
+export interface HttpConfig {
+  baseUrl?: string;
+  timeout?: number;
+  headers?: Record<string, string>;
+}
+
+export interface RetryConfig {
+  maxAttempts: number;
+  delayMs: number;
+}
+
+// Internal tokens
+const HTTP_CONFIG = new InjectionToken<HttpConfig>('http.config');
+const RETRY_CONFIG = new InjectionToken<RetryConfig>('retry.config');
+const HTTP_FEATURES = new InjectionToken<Set<HttpFeatures>>('http.features');
+
+// Core service
+class HttpClientService {
+  private config = inject(HTTP_CONFIG, {optional: true});
+  private features = inject(HTTP_FEATURES);
+
+  get(url: string) {
+    // Use config and check features
+  }
+}
+
+// Feature services
+class RetryInterceptor {
+  private config = inject(RETRY_CONFIG);
+  // Retry logic
+}
+
+class CacheInterceptor {
+  // Caching logic
+}
+
+// Main provider function
+export function provideHttpClient(config?: HttpConfig, ...features: HttpFeature[]): Provider[] {
+  const providers: Provider[] = [
+    {provide: HTTP_CONFIG, useValue: config || {}},
+    {provide: HTTP_FEATURES, useValue: new Set(features.map((f) => f.kind))},
+    HttpClientService,
+  ];
+
+  // Add feature-specific providers
+  features.forEach((feature) => {
+    providers.push(...feature.providers);
+  });
+
+  return providers;
+}
+
+// Feature configuration functions
+export interface HttpFeature {
+  kind: HttpFeatures;
+  providers: Provider[];
+}
+
+export function withInterceptors(...interceptors: any[]): HttpFeature {
+  return {
+    kind: HttpFeatures.Interceptors,
+    providers: interceptors.map((interceptor) => ({
+      provide: INTERCEPTOR_TOKEN,
+      useClass: interceptor,
+      multi: true,
+    })),
+  };
+}
+
+export function withCaching(): HttpFeature {
+  return {
+    kind: HttpFeatures.Caching,
+    providers: [CacheInterceptor],
+  };
+}
+
+export function withRetry(config: RetryConfig): HttpFeature {
+  return {
+    kind: HttpFeatures.Retry,
+    providers: [{provide: RETRY_CONFIG, useValue: config}, RetryInterceptor],
+  };
+}
+
+// Consumer usage with multiple features
+bootstrapApplication(App, {
+  providers: [
+    provideHttpClient(
+      {baseUrl: 'https://api.example.com'},
+      withInterceptors(AuthInterceptor, LoggingInterceptor),
+      withCaching(),
+      withRetry({maxAttempts: 3, delayMs: 1000}),
+    ),
+  ],
+});
+```
+
+### Why use provider functions instead of direct configuration?
+
+Provider functions offer several advantages for library authors:
+
+1. **Encapsulation** - Internal tokens and implementation details remain private
+2. **Type safety** - TypeScript ensures correct configuration at compile time
+3. **Flexibility** - Easily compose features with `with*` pattern
+4. **Future-proofing** - Internal implementation can change without breaking consumers
+5. **Consistency** - Aligns with Angular's own patterns (`provideRouter`, `provideHttpClient`, etc.)
+
+This pattern is extensively used in Angular's own libraries and is considered a best practice for library authors who need to provide configurable services.
+
+---
+
+### PAGE: Lazy loading services
+
+# Lazy loading services
+
+IMPORTANT: For lazy loading to work, the service you load must be auto-provided. Decorate it with either `@Injectable({providedIn: 'root'})` or [`@Service()`](guide/di/creating-and-using-services#using-the-service-vs-injectable-decorator). Without auto-provisioning, Angular has no way to construct the service after it loads.
+
+Angular's `injectAsync` function lets you load a service on demand, only when it's actually needed. This is useful when a service depends on a large library or rarely used feature, and you don't want to pay for it on the initial page load.
+
+When you use `injectAsync`, the service's code is split out by your bundler into a separate JavaScript chunk and downloaded the first time you ask for the instance. Once loaded, Angular resolves the service through the regular DI system, so it can still depend on other injectables and behaves like any other singleton.
+
+## Lazily injecting a service
+
+Imagine a `ReportExporter` that depends on a heavy spreadsheet library. Most users open the report; only a few click **Export**. Load the exporter on demand:
+
+```angular-ts
+import {Component, injectAsync} from '@angular/core';
+
+@Component({
+  selector: 'app-report',
+  template: `<button (click)="export()">Export</button>`,
+})
+export class Report {
+  private exporter = injectAsync(() => import('./report-exporter').then((m) => m.ReportExporter));
+
+  async export() {
+    const exporter = await this.exporter();
+    exporter.export();
+  }
+}
+```
+
+The first call to `this.exporter()` triggers the dynamic import and resolves the service from DI. Subsequent calls reuse the same promise, so the chunk is only fetched once.
+
+If the lazy-loaded service is the [default export](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/export#using_the_default_export), pass the dynamic import directly, Angular unwraps the `default` for you:
+
+```ts {header: "report-exporter.ts"}
+@Service()
+export default class ReportExporter {
+  /* … */
+}
+```
+
+```ts {header: "report.ts"}
+private exporter = injectAsync(() => import('./report-exporter'));
+```
+
+## Prefetching the dependency
+
+By default, the lazy chunk is only fetched when you invoke the returned function. You can start the download earlier by passing a `prefetch` trigger in the options. A trigger is any function that returns a `Promise`, when it resolves, Angular kicks off the loader.
+
+Angular ships with `onIdle`, a built-in trigger that waits until the browser becomes idle:
+
+```ts
+import {Component, injectAsync, onIdle} from '@angular/core';
+
+@Component({/* … */})
+export class Report {
+  private exporter = injectAsync(() => import('./report-exporter').then((m) => m.ReportExporter), {
+    prefetch: onIdle,
+  });
+}
+```
+
+You can also configure `onIdle` with a maximum wait time so the prefetch always happens within a known window, even on busy pages:
+
+```ts
+injectAsync(loader, {prefetch: () => onIdle({timeout: 1_000})});
+```
+
+NOTE: Prefetching is opportunistic. If the user invokes the feature before the prefetch fires, Angular still loads the dependency immediately and resolves your `await` as soon as it's ready.
+
+## Provide a custom prefetch trigger
+
+A `PrefetchTrigger` is just a function that returns a promise, the loader runs as soon as the promise resolves. Use this to align prefetching with your own signals, such as a hover or a scheduler tick:
+
+```ts
+import {PrefetchTrigger} from '@angular/core';
+
+export function onHover(target: HTMLElement): PrefetchTrigger {
+  return () =>
+    new Promise<void>((resolve) => {
+      target.addEventListener('pointerenter', () => resolve(), {once: true});
+    });
+}
+```
+
+---
+
+### PAGE: Injection context
+
+# Injection context
+
+The dependency injection (DI) system relies on a runtime context where the current injector is available.
+
+This means that injectors only work when you execute code within this context.
+
+You have an injection context available in the following situations:
+
+- During construction (via the `constructor`) of a class instantiated by the DI system, such as an `@Injectable` or `@Component`.
+- In field initializers of such classes.
+- In the factory function specified for `useFactory` of a `Provider` or an `@Injectable`.
+- In the `factory` function specified for an `InjectionToken`.
+- Within a stack frame that runs in an injection context.
+
+Knowing when you are in an injection context allows you to use the [`inject`](api/core/inject) function to retrieve dependencies.
+
+NOTE: For basic examples of using `inject()` in class constructors and field initializers, see the [overview guide](/guide/di#where-can-inject-be-used).
+
+## Stack frame in context
+
+Some APIs are designed to run within an injection context. This is the case, for example, with router guards. This allows you to use [`inject`](api/core/inject) within the guard function to access services.
+
+Here is an example for `CanActivateFn`
+
+```ts {highlight: [3]}
+const canActivateTeam: CanActivateFn = (
+  route: ActivatedRouteSnapshot,
+  state: RouterStateSnapshot,
+) => {
+  return inject(PermissionsService).canActivate(inject(UserToken), route.params.id);
+};
+```
+
+## Run within an injection context
+
+If you need to run a function within an injection context without already being in one, you can use `runInInjectionContext`.
+This requires access to an injector, such as the `EnvironmentInjector`:
+
+```ts {highlight: [7], header:"hero.service.ts"}
+@Service()
+export class HeroService {
+  private environmentInjector = inject(EnvironmentInjector);
+
+  someMethod() {
+    runInInjectionContext(this.environmentInjector, () => {
+      inject(SomeService); // Do what you need with the injected service
+    });
+  }
+}
+```
+
+Note that [`inject`](/api/core/inject) returns an instance only if the injector can resolve the requested token.
+
+## Asserts the context
+
+Angular provides the `assertInInjectionContext` helper function to verify that the current context is an injection context and throw a clear error if it is not. Pass a reference to the calling function so the error message points to the correct API entry point. This produces a clearer, more actionable message than the default generic injection error.
+
+```ts
+import {ElementRef, assertInInjectionContext, inject} from '@angular/core';
+
+export function injectNativeElement<T extends Element>(): T {
+  assertInInjectionContext(injectNativeElement);
+  return inject(ElementRef).nativeElement;
+}
+```
+
+You can then call this helper **from an injection context** (constructor, field initializer, provider factory, or code executed via `runInInjectionContext`):
+
+```ts
+import {Component, inject} from '@angular/core';
+import {injectNativeElement} from './dom-helpers';
+
+@Component({/* … */})
+export class PreviewCard {
+  readonly hostEl = injectNativeElement<HTMLElement>(); // Field initializer runs in an injection context.
+
+  onAction() {
+    const anotherRef = injectNativeElement<HTMLElement>(); // Fails: runs outside an injection context.
+  }
+}
+```
+
+## Using DI outside of a context
+
+If you call [`inject`](api/core/inject) or `assertInInjectionContext` outside of an injection context, Angular throws [error NG0203](/errors/NG0203).
+
+---
+
+### PAGE: Hierarchical injectors
+
+# Hierarchical injectors
+
+This guide provides in-depth coverage of Angular's hierarchical dependency injection system, including resolution rules, modifiers, and advanced patterns.
+
+NOTE: For basic concepts about injector hierarchy and provider scoping, see the [defining dependency providers guide](guide/di/defining-dependency-providers#injector-hierarchy-in-angular).
+
+## Types of injector hierarchies
+
+Angular has two injector hierarchies:
+
+| Injector hierarchies            | Details                                                                                                                                                                   |
+| :------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EnvironmentInjector` hierarchy | Configure an `EnvironmentInjector` in this hierarchy using `@Service()` or `providers` array in `ApplicationConfig`.                                                      |
+| `ElementInjector` hierarchy     | Created implicitly at each DOM element. An `ElementInjector` is empty by default unless you configure it in the `providers` property on `@Directive()` or `@Component()`. |
+
+<docs-callout title="NgModule Based Applications">
+For `NgModule` based applications, you can provide dependencies with the `ModuleInjector` hierarchy using an `@NgModule()` or `@Injectable()` annotation.
+</docs-callout>
+
+### `EnvironmentInjector`
+
+The `EnvironmentInjector` can be configured in one of two ways by using:
+
+- The `@Service()`
+- The `ApplicationConfig` `providers` array
+
+<docs-callout title="Tree-shaking and @Service()">
+
+Using the `@Service()` decorator is preferable to using the `ApplicationConfig` `providers` array. With `@Service`, optimization tools can perform tree-shaking, which removes services that your application isn't using. This results in smaller bundle sizes.
+
+Tree-shaking is especially useful for a library because the application which uses the library may not have a need to inject it.
+
+</docs-callout>
+
+`EnvironmentInjector` is configured by the `ApplicationConfig.providers`.
+
+Provide services using `@Service()` as follows:
+
+```ts {highlight:[4]}
+import {Service} from '@angular/core';
+
+@Service() // <--provides this service in the root EnvironmentInjector
+export class ItemService {
+  name = 'telephone';
+}
+```
+
+The `@Service()` or `@Injectable()` decorators identify a service class.
+
+### ModuleInjector
+
+In the case of `NgModule` based applications, the ModuleInjector can be configured in one of two ways by using:
+
+- The `@Service()` decorator,
+- The `@Injectable()` `providedIn` property to refer to `root` or `platform`
+- The `@NgModule()` `providers` array
+
+`ModuleInjector` is configured by the `@NgModule.providers` and `NgModule.imports` property. `ModuleInjector` is a flattening of all the providers arrays that can be reached by following the `NgModule.imports` recursively.
+
+Child `ModuleInjector` hierarchies are created when lazy loading other `@NgModules`.
+
+### Platform injector
+
+There are two more injectors above `root`, an additional `EnvironmentInjector` and `NullInjector()`.
+
+Consider how Angular bootstraps the application with the following in `main.ts`:
+
+```ts
+bootstrapApplication(App, appConfig);
+```
+
+The `bootstrapApplication()` method creates a child injector of the platform injector which is configured by the `ApplicationConfig` instance.
+This is the `root` `EnvironmentInjector`.
+
+The `bootstrapApplication()` method also creates (or reuses) the platform injector, which contains platform-specific dependencies.
+This allows multiple applications to share a platform configuration.
+For example, a browser has only one URL bar, no matter how many applications you have running.
+You can configure additional platform-specific providers at the platform level by supplying `extraProviders` using the `platformBrowser()` function.
+
+The next parent injector in the hierarchy is the `NullInjector()`, which is the top of the tree.
+If you've gone so far up the tree that you are looking for a service in the `NullInjector()`, you'll get an error unless you've used `@Optional()` because ultimately, everything ends at the `NullInjector()` and it returns an error or, in the case of `@Optional()`, `null`.
+For more information on `@Optional()`, see the [`@Optional()` section](#optional) of this guide.
+
+The following diagram represents the relationship between the `root` `ModuleInjector` and its parent injectors as the previous paragraphs describe.
+
+```mermaid
+stateDiagram-v2
+    elementInjector: EnvironmentInjector<br>(configured by Angular)<br>has special things like DomSanitizer => providedIn 'platform'
+    rootInjector: root EnvironmentInjector<br>(configured by AppConfig)<br>has things for your app => bootstrapApplication(..., AppConfig)
+    nullInjector: NullInjector<br>always throws an error unless<br>you use @Optional()
+
+    direction BT
+    rootInjector --> elementInjector
+    elementInjector --> nullInjector
+```
+
+While the name `root` is a special alias, other `EnvironmentInjector` hierarchies don't have aliases.
+You have the option to create `EnvironmentInjector` hierarchies whenever a dynamically loaded component is created, such as with the Router, which will create child `EnvironmentInjector` hierarchies.
+
+All requests forward up to the root injector, whether you configured it with the `ApplicationConfig` instance passed to the `bootstrapApplication()` method, or registered all providers with `root` in their own services.
+
+<docs-callout title="@Injectable() vs. ApplicationConfig">
+
+If you configure an app-wide provider in the `ApplicationConfig` of `bootstrapApplication`, it overrides one configured for `root` in the `@Injectable()` metadata.
+You can do this to configure a non-default provider of a service that is shared with multiple applications.
+
+Here is an example of the case where the component router configuration includes a non-default [location strategy](guide/routing/common-router-tasks#locationstrategy-and-browser-url-styles) by listing its provider in the `providers` list of the `ApplicationConfig`.
+
+```ts
+providers: [{provide: LocationStrategy, useClass: HashLocationStrategy}];
+```
+
+For `NgModule` based applications, configure app-wide providers in the `AppModule` `providers`.
+
+</docs-callout>
+
+### `ElementInjector`
+
+Angular creates `ElementInjector` hierarchies implicitly for each DOM element.
+
+Providing a service in the `@Component()` decorator using its `providers` or `viewProviders` property configures an `ElementInjector`.
+For example, the following `TestComponent` configures the `ElementInjector` by providing the service as follows:
+
+```ts {highlight:[3]}
+@Component({
+  /* … */
+  providers: [{ provide: ItemService, useValue: { name: 'lamp' } }]
+})
+export class TestComponent
+```
+
+HELPFUL: See the [resolution rules](#resolution-rules) section to understand the relationship between the `EnvironmentInjector` tree, the `ModuleInjector` and the `ElementInjector` tree.
+
+When you provide services in a component, that service is available by way of the `ElementInjector` at that component instance.
+It may also be visible at child component/directives based on visibility rules described in the [resolution rules](#resolution-rules) section.
+
+When the component instance is destroyed, so is that service instance.
+
+#### `@Directive()` and `@Component()`
+
+A component is a special type of directive, which means that just as `@Directive()` has a `providers` property, `@Component()` does too.
+This means that directives as well as components can configure providers, using the `providers` property.
+When you configure a provider for a component or directive using the `providers` proper

@@ -1,0 +1,767 @@
+# Angular — llms.txt (offline, fully inlined)
+
+> Generated from https://angular.dev/llms.txt (source: https://github.com/angular/angular, `adev/src/llms.txt`).
+> Every page linked in the original llms.txt is inlined below as its own section, so no external fetching is required.
+> Compile into per-feature files with: `script/compilers.sh script/llms.txt`
+
+## CAT: table-of-contents
+
+### PAGE: What is Angular
+
+<docs-decorative-header title="What is Angular?" imgSrc="adev/src/assets/images/globe.svg" gradientBackground="true">
+  Angular is a web framework that empowers<br/>
+  developers to build fast, reliable applications that users love.
+</docs-decorative-header>
+
+<div style="margin: 2em">
+  Maintained by a dedicated team at Google, Angular provides a broad suite of tools, APIs, and
+  libraries to simplify and streamline your development workflow. Angular gives you
+  a solid platform on which to build fast, reliable applications that scale with both the size of
+  your team and the size of your codebase. Angular.dev is the official home for Angular documentation.
+</div>
+
+<docs-nav-card title="Want to see some code?" iconImgSrc="adev/src/assets/icons/star.svg">
+  <docs-nav-link title="Essentials" iconName="docs" href="essentials" iconImgSrc="adev/src/assets/icons/docs.svg">
+    An overview of what it's like to use Angular
+  </docs-nav-link>
+  <docs-nav-link title="Tutorials" iconName="code"  href="tutorials" iconImgSrc="adev/src/assets/icons/tutorials.svg">
+    Step-by-step instructions in your browser
+  </docs-nav-link>
+</docs-nav-card>
+
+<docs-card-container headerTitle="Features that power your development" headerImgSrc="adev/src/assets/images/learn-angular-browser-bw.svg">
+  <docs-card title="Components" href="essentials/components" link="Get started with Components" iconImgSrc="adev/src/assets/icons/components.svg">
+    Angular components make it easy to split your code into well-encapsulated parts.
+  </docs-card>
+  <docs-card title="Angular Signals" href="essentials/signals" link="Explore Angular Signals" titleIconName="sensors" iconImgSrc="adev/src/assets/icons/signals.svg">
+    Our fine-grained reactivity model, combined with compile-time optimizations, simplifies development and helps build faster apps by default.
+  </docs-card>
+  <docs-card title="Server-side rendering" href="guide/ssr" link="Read about SSR" iconImgSrc="adev/src/assets/icons/ssr.svg">
+    Angular supports both server-side rendering (SSR) and static site generation (SSG) along with full DOM hydration.
+  </docs-card>
+  <docs-card title="Dependency injection" href="essentials/dependency-injection" link="Explore Dependency Injection" iconImgSrc="adev/src/assets/icons/di.svg">
+    Easily share code across components throughout your entire application.
+  </docs-card>
+  <docs-card title="Angular Routing" href="guide/routing" link="Explore Angular Routing" iconImgSrc="adev/src/assets/icons/routing.svg">
+    Provides a feature-rich navigation toolkit, including support for route guards, data resolution, lazy-loading, and much more.
+  </docs-card>
+  <docs-card title="Forms in Angular" href="guide/forms" link="Explore Forms" iconImgSrc="adev/src/assets/icons/forms.svg">
+    Provides a standardized system for form participation and validation.
+  </docs-card>
+</docs-card-container>
+
+<docs-card-container headerTitle="Develop applications faster than ever" headerImgSrc="adev/src/assets/images/browser-bolt.svg">
+  <docs-card title="CLI" href="tools/cli" link="Angular CLI" iconImgSrc="adev/src/assets/icons/cli.svg">
+    Angular CLI gets your project running in under a minute with the commands you need to grow into a deployed production application.
+  </docs-card>
+  <docs-card title="DevTools" href="tools/devtools" link="Angular DevTools" iconImgSrc="adev/src/assets/icons/dev-tools.svg">
+    Angular DevTools sits alongside your browser's developer tools. It helps debug and analyze your app, including a component tree inspector, dependency injection tree view, and custom performance profiling flame chart.
+  </docs-card>
+  <docs-card title="ng update" href="update" link="ng update" iconImgSrc="adev/src/assets/icons/ng-update.svg">
+    Angular CLI's `ng update` runs automated code transformations that automatically handle routine breaking changes, dramatically simplifying major version updates. Keeping up with the latest version keeps your app as fast and secure as possible.
+  </docs-card>
+  <docs-card title="Language Service" href="tools/language-service" link="Language Service" iconImgSrc="adev/src/assets/icons/language-service.svg">
+    Angular's IDE language service powers code completion, navigation, refactoring, and real-time diagnostics in your favorite editor.
+  </docs-card>
+</docs-card-container>
+
+<docs-card-container headerTitle="Ship with confidence" headerImgSrc="adev/src/assets/images/rocket.svg">
+  <docs-card title="Verified commit-by-commit against Google's colossal monorepo" href="https://cacm.acm.org/research/why-google-stores-billions-of-lines-of-code-in-a-single-repository/" link="Learn about Google's monorepo" titleIconName="sensors">
+    <p>Every Angular commit is checked against hundreds of thousands of tests in Google's internal code repository, representing countless real-world scenarios.</p>
+    <p>Angular is committed to stability for some of Google’s largest products, including Google Cloud. This commitment ensures changes are well-tested, backwards compatible, and include migration tools whenever possible.</p>
+  </docs-card>
+  <docs-card title="Clear support policies and predictable release schedule" href="reference/releases" link="Versioning & releasing" titleIconName="sensors">
+    Angular's predictable, time-based release schedule gives your organization confidence in the stability and backwards compatibility of the framework. Long Term Support (LTS) windows make sure you get critical security fixes when you need them. First-party update tools, guides and automated migration schematics help keep your apps up-to-date with the latest advancements to the framework and the web platform.
+  </docs-card>
+</docs-card-container>
+
+<docs-card-container headerTitle="Works at any scale" headerImgSrc="adev/src/assets/images/servers.svg">
+  <docs-card title="Reach users everywhere with internationalization support" href="guide/i18n" link="Internationalization" titleIconName="sensors">
+    Angular's internationalization features handle message translations and formatting, including
+    support for unicode standard ICU syntax.
+  </docs-card>
+  <docs-card title="Protect your users with security by default" href="best-practices/security" link="Security" titleIconName="sensors">
+    In collaboration with Google's world-class security engineers, Angular aims to make development
+    safe by default. Built-in security features, including HTML sanitization and
+    trusted type support, help protect your users from common vulnerabilities like
+    cross-site scripting and cross-site request forgery.
+  </docs-card>
+  <docs-card title="Keep large teams productive with Vite and esbuild" href="tools/cli/build-system-migration" link="Vite and esbuild" titleIconName="sensors">
+    Angular CLI includes a fast, modern build pipeline using Vite and esbuild. Developers report
+    building projects with hundreds of thousands of lines of code in less than a minute.
+  </docs-card>
+  <docs-card title="Proven in some of Google's largest web apps" titleIconName="sensors">
+    Large Google products build on top of Angular's architecture and help develop new features that
+    further improve Angular's scalability, from [Google Fonts](https://fonts.google.com/) to [Google Cloud](https://console.cloud.google.com).
+  </docs-card>
+</docs-card-container>
+
+<docs-card-container headerTitle="Open-source first" headerImgSrc="adev/src/assets/images/open-source.svg">
+  <docs-card title="Made in the open on GitHub" href="https://github.com/angular/angular" link="Star our GitHub" titleIconName="sensors">
+    Curious what we’re working on? Every PR and commit is available on our GitHub. Run into an issue or bug? We triage GitHub issues regularly to ensure we’re responsive and engaged with our community, and solving the real world problems you’re facing.
+  </docs-card>
+  <docs-card title="Built with transparency" href="roadmap" link="Read our public roadmap" titleIconName="sensors">
+    Our team publishes a public roadmap of our current and future work and values your feedback. We publish Request for Comments (RFCs) to collect feedback on larger feature changes and ensure the community voice is heard while shaping the future direction of Angular.
+  </docs-card>
+</docs-card-container>
+
+<docs-card-container headerTitle="A thriving community" headerImgSrc="adev/src/assets/images/community.svg">
+  <docs-card title="Courses, blogs and resources" href="https://devlibrary.withgoogle.com/products/angular?sort=added" link="Check out DevLibrary" titleIconName="sensors">
+    Our community is composed of talented developers, writers, instructors, podcasters, and more. The Google for Developers library is just a sample of the high quality resources available for new and experienced developers to continue developing.
+  </docs-card>
+  <docs-card title="Open Source" href="https://github.com/angular/angular/blob/main/CONTRIBUTING.md" link="Contribute to Angular" titleIconName="sensors">
+    We are thankful for the open source contributors who make Angular a better framework for everyone. From fixing a typo in the docs, to adding major features, we encourage anyone interested to get started on our GitHub.
+  </docs-card>
+  <docs-card title="Community partnerships" href="https://developers.google.com/community/experts/directory?specialization=angular" link="Meet the Angular GDEs" titleIconName="sensors">
+    Our team partners with individuals, educators, and enterprises to ensure we consistently are supporting developers. Angular Google Developer Experts (GDEs) represent community leaders around the world educating, organizing, and developing with Angular. Enterprise partnerships help ensure that Angular scales well for technology industry leaders.
+  </docs-card>
+  <docs-card title="Partnering with other Google technologies" titleIconName="sensors">
+    <p>Angular partners closely with other Google technologies and teams to improve the web.</p>
+    <p>Our ongoing partnership with Chrome’s Aurora actively explores improvements to user experience across the web, developing built-in performance optimizations like <code>NgOptimizedImage</code> and improvements to Angular’s Core Web Vitals.</p>
+    <p>We are also working with <a href="https://firebase.google.com/" target="_blank">Firebase</a>, <a href="https://www.tensorflow.org/" target="_blank">TensorFlow</a>, <a href="https://flutter.dev/" target="_blank">Flutter</a>, <a href="https://m3.material.io/" target="_blank">Material Design</a>, and <a href="https://cloud.google.com/" target="_blank">Google Cloud</a> to ensure we provide meaningful integrations across the developer workflow.</p>
+  </docs-card>
+</docs-card-container>
+
+<docs-callout title="Join the momentum!">
+  <docs-pill-row>
+    <docs-pill href="roadmap" title="Read Angular's roadmap"/>
+    <docs-pill href="playground" title="Try out our playground"/>
+    <docs-pill href="tutorials" title="Learn with tutorials"/>
+    <docs-pill href="https://youtube.com/playlist?list=PL1w1q3fL4pmj9k1FrJ3Pe91EPub2_h4jF" title="Watch our YouTube course"/>
+    <docs-pill href="api" title="Reference our APIs"/>
+  </docs-pill-row>
+</docs-callout>
+
+---
+
+### PAGE: Installation guide
+
+<docs-decorative-header title="Installation" imgSrc="adev/src/assets/images/what_is_angular.svg"> <!-- markdownlint-disable-line -->
+</docs-decorative-header>
+
+Get started with Angular quickly with online starters or locally with your terminal.
+
+## Play Online
+
+If you just want to play around with Angular in your browser without setting up a project, you can use our online sandbox:
+
+<docs-card title="Playground" href="/playground" link="Open on Playground" iconImgSrc="adev/src/assets/icons/playground.svg" titleInline>
+The fastest way to play with an Angular app. No setup required.
+</docs-card>
+
+## Set up a new project locally
+
+If you're starting a new project, you'll most likely want to create a local project so that you can use tooling such as Git.
+
+### Prerequisites
+
+- **Node.js** - [v22.22.3 or newer](/reference/versions)
+- **Text editor** - We recommend [Visual Studio Code](https://code.visualstudio.com/)
+- **Terminal** - Required for running [Angular CLI](/tools/cli) commands
+- **Development Tool** - To improve your development workflow, we recommend the [Angular Language Service](/tools/language-service)
+
+### Instructions
+
+The following guide will walk you through setting up a local Angular project.
+
+#### Install Angular CLI
+
+Open a terminal (if you're using [Visual Studio Code](https://code.visualstudio.com/), you can open an [integrated terminal](https://code.visualstudio.com/docs/editor/integrated-terminal)) and run the following command:
+
+<docs-code-multifile>
+  <docs-code
+    header="npm"
+    language="shell"
+    >
+    npm install -g @angular/cli
+    </docs-code>
+  <docs-code
+    header="pnpm"
+    language="shell"
+    >
+    pnpm install -g @angular/cli
+    </docs-code>
+  <docs-code
+    header="yarn"
+    language="shell"
+    >
+    yarn global add @angular/cli
+    </docs-code>
+  <docs-code
+    header="bun"
+    language="shell"
+    >
+    bun install -g @angular/cli
+    </docs-code>
+</docs-code-multifile>
+
+If you are having issues running this command in Windows or Unix, check out the [CLI docs](/tools/cli/setup-local#install-the-angular-cli) for more info.
+
+#### Create a new project
+
+In your terminal, run the CLI command [`ng new`](cli/new) with the desired project name. In the following examples, we'll be using the example project name of `my-first-angular-app`.
+
+```shell
+ng new <project-name>
+```
+
+You will be presented with some configuration options for your project. Use the arrow and enter keys to navigate and select which options you desire.
+
+If you don't have any preferences, just hit the enter key to take the default options and continue with the setup.
+
+After you select the configuration options and the CLI runs through the setup, you should see the following message:
+
+```text
+✔ Packages installed successfully.
+    Successfully initialized git.
+```
+
+At this point, you're now ready to run your project locally!
+
+#### Running your new project locally
+
+In your terminal, switch to your new Angular project.
+
+```shell
+cd my-first-angular-app
+```
+
+All of your dependencies should be installed at this point (which you can verify by checking for the existence of a `node_modules` folder in your project), so you can start your project by running the command:
+
+```shell
+npm start
+```
+
+If everything is successful, you should see a similar confirmation message in your terminal:
+
+```text
+Watch mode enabled. Watching for file changes...
+NOTE: Raw file sizes do not reflect development server per-request transformations.
+  ➜  Local:   http://localhost:4200/
+  ➜  press h + enter to show help
+```
+
+And now you can visit the path in `Local` (e.g., `http://localhost:4200`) to see your application. Happy coding! 🎉
+
+### Using AI for Development
+
+To get started with building in your preferred AI powered IDE, [check out Angular prompt rules and best practices](/ai/develop-with-ai).
+
+## Next steps
+
+Now that you've created your Angular project, you can learn more about Angular in our [Essentials guide](/essentials) or choose a topic in our in-depth guides!
+
+---
+
+### PAGE: Style Guide
+
+# Angular coding style guide
+
+## Introduction
+
+This guide covers a range of style conventions for Angular application code. These recommendations
+are not required for Angular to work, but instead establish a set of coding practices that promote
+consistency across the Angular ecosystem. A consistent set of practices makes it easier to share
+code and move between projects.
+
+This guide does _not_ cover TypeScript or general coding practices unrelated to Angular. For
+TypeScript, check
+out [Google's TypeScript style guide](https://google.github.io/styleguide/tsguide.html).
+
+### When in doubt, prefer consistency
+
+Whenever you encounter a situation in which these rules contradict the style of a particular file,
+prioritize maintaining consistency within a file. Mixing different style conventions in a single
+file creates more confusion than diverging from the recommendations in this guide.
+
+## Naming
+
+### Separate words in file names with hyphens
+
+Separate words within a file name with hyphens (`-`). For example, a component named `UserProfile`
+has a file name `user-profile.ts`.
+
+### Use the same name for a file's tests with `.spec` at the end
+
+For unit tests, end file names with `.spec.ts`. For example, the unit test file for
+the `UserProfile` component has the file name `user-profile.spec.ts`.
+
+### Match file names to the TypeScript identifier within
+
+File names should generally describe the contents of the code in the file. When the file contains a
+TypeScript class, the file name should reflect that class name. For example, a file containing a
+component named `UserProfile` has the name `user-profile.ts`.
+
+If the file contains more than one primary namable identifier, choose a name that describes the
+common theme to the code within. If the code in a file does not fit within a common theme or feature
+area, consider breaking the code up into different files. Avoid overly generic file names
+like `helpers.ts`, `utils.ts`, or `common.ts`.
+
+### Use the same file name for a component's TypeScript, template, and styles
+
+Components typically consist of one TypeScript file, one template file, and one style file. These
+files should share the same name with different file extensions. For example, a `UserProfile`
+component can have the files `user-profile.ts`, `user-profile.html`, and `user-profile.css`.
+
+If a component has more than one style file, append the name with additional words that describe the
+styles specific to that file. For example, `UserProfile` might have style
+files `user-profile-settings.css` and `user-profile-subscription.css`.
+
+## Project structure
+
+### All the application's code goes in a directory named `src`
+
+All of your Angular UI code (TypeScript, HTML, and styles) should live inside a directory
+named `src`. Code that's not related to UI, such as configuration files or scripts, should live
+outside the `src` directory.
+
+This keeps the root application directory consistent between different Angular projects and creates
+a clear separation between UI code and other code in your project.
+
+### Bootstrap your application in a file named `main.ts` directly inside `src`
+
+The code to start up, or **bootstrap**, an Angular application should always live in a file
+named `main.ts`. This represents the primary entry point to the application.
+
+### Group closely related files together in the same directory
+
+Angular components consist of a TypeScript file and, optionally, a template and one or more style
+files. You should group these together in the same directory.
+
+Unit tests should live in the same directory as the code-under-test. Avoid collecting unrelated
+tests into a single `tests` directory.
+
+### Organize your project by feature areas
+
+Organize your project into subdirectories based on the features of your application or common themes
+to the code in those directories. For example, the project structure for a movie theater site,
+MovieReel, might look like this:
+
+```
+src/
+├─ movie-reel/
+│ ├─ show-times/
+│ │ ├─ film-calendar/
+│ │ ├─ film-details/
+│ ├─ reserve-tickets/
+│ │ ├─ payment-info/
+│ │ ├─ purchase-confirmation/
+```
+
+Avoid creating subdirectories based on the type of code that lives in those directories. For
+example, avoid creating directories like `components`, `directives`, and `services`.
+
+Avoid putting so many files into one directory that it becomes hard to read or navigate. As the
+number of files in a directory grows, consider splitting further into additional sub-directories.
+
+### One concept per file
+
+Prefer focusing source files on a single _concept_. For Angular classes specifically, this usually
+means one component, directive, or service per file. However, it's okay if a file contains more than
+one component or directive if your classes are relatively small and they tie together as part of a
+single concept.
+
+When in doubt, go with the approach that leads to smaller files.
+
+## Dependency injection
+
+### Prefer the `inject` function over constructor parameter injection
+
+Prefer using the [`inject`](/api/core/inject) function over injecting constructor parameters. The [`inject`](/api/core/inject) function works the same way as constructor parameter injection, but offers several style advantages:
+
+- [`inject`](/api/core/inject) is generally more readable, especially when a class injects many dependencies.
+- It's more syntactically straightforward to add comments to injected dependencies
+- [`inject`](/api/core/inject) offers better type inference.
+- When targeting ES2022+ with [`useDefineForClassFields`](https://www.typescriptlang.org/tsconfig/#useDefineForClassFields), you can avoid separating field declaration and initialization when fields read on injected dependencies.
+
+[You can refactor existing code to `inject` with an automatic tool](reference/migrations/inject-function).
+
+## Components and directives
+
+### Choosing component selectors
+
+See
+the [Components guide for details on choosing component selectors](guide/components/selectors#choosing-a-selector).
+
+### Naming component and directive members
+
+See the Components guide for details
+on [naming input properties](guide/components/inputs#choosing-input-names)
+and [naming output properties](guide/components/outputs#choosing-event-names).
+
+### Choosing directive selectors
+
+Directives should use the
+same [application-specific prefix](guide/components/selectors#selector-prefixes)
+as your components.
+
+When using an attribute selector for a directive, use a camelCase attribute name. For example, if
+your application is named "MovieReel" and you build a directive that adds a tooltip to an element,
+you might use the selector `[mrTooltip]`.
+
+### Group Angular-specific properties before methods
+
+Components and directives should group Angular-specific properties together, typically near the top
+of the class declaration. This includes injected dependencies, inputs, outputs, and queries. Define
+these and other properties before the class's methods.
+
+This practice makes it easier to find the class's template APIs and dependencies.
+
+### Keep components and directives focused on presentation
+
+Code inside your components and directives should generally relate to the UI shown on the page. For
+code that makes sense on its own, decoupled from the UI, prefer refactoring to other files. For
+example, you can factor form validation rules or data transformations into separate functions or
+classes.
+
+### Avoid overly complex logic in templates
+
+Angular templates are designed to
+accommodate [JavaScript-like expressions](guide/templates/expression-syntax).
+You should take advantage of these expressions to capture relatively straightforward logic directly
+in template expressions.
+
+When the code in a template gets too complex, though, refactor logic into the TypeScript code (typically with a [computed](guide/signals#computed-signals)).
+
+There's no one hard-and-fast rule that determines what constitutes "complex". Use your best
+judgement.
+
+### Use `protected` on class members that are only used by a component's template
+
+A component class's public members intrinsically define a public API that's accessible via
+dependency injection and [queries](guide/components/queries). Prefer `protected`
+access for any members that are meant to be read from the component's template.
+
+```ts
+@Component({
+  ...,
+  template: `<p>{{ fullName() }}</p>`,
+})
+export class UserProfile {
+  firstName = input();
+  lastName = input();
+
+// `fullName` is not part of the component's public API, but is used in the template.
+  protected fullName = computed(() => `${this.firstName()} ${this.lastName()}`);
+}
+```
+
+### Use `readonly` for properties that shouldn't change
+
+Mark component and directive properties initialized by Angular as `readonly`. This includes
+properties initialized by `input`, `model`, `output`, and queries. The readonly access modifier
+ensures that the value set by Angular is not overwritten.
+
+```ts
+@Component(/* ... */)
+export class UserProfile {
+  readonly userId = input();
+  readonly userSaved = output();
+  readonly userName = model();
+}
+```
+
+For components and directives that use the decorator-based `@Input`, `@Output`, and query APIs, this
+advice applies to output properties and queries, but not input properties.
+
+```ts
+@Component(/* ... */)
+export class UserProfile {
+  @Output() readonly userSaved = new EventEmitter<void>();
+  @ViewChildren(PaymentMethod) readonly paymentMethods?: QueryList<PaymentMethod>;
+}
+```
+
+### Prefer `class` and `style` over `ngClass` and `ngStyle`
+
+Prefer `class` and `style` bindings over using the [`NgClass`](/api/common/NgClass) and [`NgStyle`](/api/common/NgStyle) directives.
+
+```html {prefer}
+<div [class.admin]="isAdmin" [class.dense]="density === 'high'">
+  <div [style.color]="textColor" [style.background-color]="backgroundColor">
+    <!-- OR -->
+    <div [class]="{admin: isAdmin, dense: density === 'high'}">
+      <div [style]="{'color': textColor, 'background-color': backgroundColor}"></div>
+    </div>
+  </div>
+</div>
+```
+
+```html {avoid}
+<div [ngClass]="{admin: isAdmin, dense: density === 'high'}">
+  <div [ngStyle]="{'color': textColor, 'background-color': backgroundColor}"></div>
+</div>
+```
+
+Both `class` and `style` bindings use a more straightforward syntax that aligns closely with
+standard HTML attributes. This makes your templates easier to read and understand, especially for
+developers familiar with basic HTML.
+
+Additionally, the `NgClass` and `NgStyle` directives incur an additional performance cost compared
+to the built-in `class` and `style` binding syntax.
+
+For more details, refer to the [bindings guide](/guide/templates/binding#css-class-and-style-property-bindings)
+
+### Name event handlers for what they _do_, not for the triggering event
+
+Prefer naming event handlers for the action they perform rather than for the triggering event:
+
+```html {prefer}
+<button (click)="saveUserData()">Save</button>
+```
+
+```html {avoid}
+<button (click)="handleClick()">Save</button>
+```
+
+Using meaningful names like this makes it easier to tell what an event does from reading the
+template.
+
+For keyboard events, you can use Angular's key event modifiers with specific handler names:
+
+```html
+<textarea (keydown.control.enter)="commitNotes()" (keydown.control.space)="showSuggestions()">
+```
+
+Sometimes, event handling logic is especially long or complex, making it impractical to declare a
+single well-named handler. In these cases, it's fine to fall back to a name like 'handleKeydown' and
+then delegate to more specific behaviors based on the event details:
+
+```ts
+@Component(/* ... */)
+class RichText {
+  handleKeydown(event: KeyboardEvent) {
+    if (event.ctrlKey) {
+      if (event.key === 'B') {
+        this.activateBold();
+      } else if (event.key === 'I') {
+        this.activateItalic();
+      }
+      // ...
+    }
+  }
+}
+```
+
+### Keep lifecycle methods simple
+
+Avoid putting long or complex logic inside lifecycle hooks like `ngOnInit`. Instead, prefer creating
+well-named methods to contain that logic and then _call those methods_ in your lifecycle hooks.
+Lifecycle hook names describe _when_ they run, meaning that the code inside doesn't have a
+meaningful name that describes what the code inside is doing.
+
+```ts {prefer}
+ngOnInit() {
+  this.startLogging();
+  this.runBackgroundTask();
+}
+```
+
+```ts {avoid}
+ngOnInit() {
+  this.logger.setMode('info');
+  this.logger.monitorErrors();
+  // ...and all the rest of the code that would be unrolled from these methods.
+}
+```
+
+### Use lifecycle hook interfaces
+
+Angular provides a TypeScript interface for each lifecycle method. When adding a lifecycle hook to
+your class, import and `implement` these interfaces to ensure that the methods are named correctly.
+
+```ts
+import {Component, OnInit} from '@angular/core';
+
+@Component(/* ... */)
+export class UserProfile implements OnInit {
+  // The `OnInit` interface ensures this method is named correctly.
+  ngOnInit() {
+    /* ... */
+  }
+}
+```
+
+---
+
+## CAT: components
+
+### PAGE: What is a component
+
+<docs-decorative-header title="Anatomy of a component" imgSrc="adev/src/assets/images/components.svg"> <!-- markdownlint-disable-line -->
+</docs-decorative-header>
+
+TIP: This guide assumes you've already read the [Essentials Guide](essentials). Read that first if you're new to Angular.
+
+Every component must have:
+
+- A TypeScript class with _behaviors_ such as handling user input and fetching data from a server
+- An HTML template that controls what renders into the DOM
+- A [CSS selector](https://developer.mozilla.org/docs/Learn/CSS/Building_blocks/Selectors) that defines how the component is used in HTML
+
+You provide Angular-specific information for a component by adding a `@Component` [decorator](https://www.typescriptlang.org/docs/handbook/decorators.html) on top of the TypeScript class:
+
+```angular-ts {highlight: [1, 2, 3, 4]}
+@Component({
+  selector: 'profile-photo',
+  template: `<img src="profile-photo.jpg" alt="Your profile photo" />`,
+})
+export class ProfilePhoto {}
+```
+
+For full details on writing Angular templates, including data binding, event handling, and control flow, see the [Templates guide](guide/templates).
+
+The object passed to the `@Component` decorator is called the component's **metadata**. This includes the `selector`, `template`, and other properties described throughout this guide.
+
+Components can optionally include a list of CSS styles that apply to that component's DOM:
+
+```angular-ts {highlight: [4]}
+@Component({
+  selector: 'profile-photo',
+  template: `<img src="profile-photo.jpg" alt="Your profile photo" />`,
+  styles: `
+    img {
+      border-radius: 50%;
+    }
+  `,
+})
+export class ProfilePhoto {}
+```
+
+By default, a component's styles only affect elements defined in that component's template. See [Styling Components](guide/components/styling) for details on Angular's approach to styling.
+
+You can alternatively choose to write your template and styles in separate files:
+
+```ts {highlight: [3,4]}
+@Component({
+  selector: 'profile-photo',
+  templateUrl: 'profile-photo.html',
+  styleUrl: 'profile-photo.css',
+})
+export class ProfilePhoto {}
+```
+
+This can help separate the concerns of _presentation_ from _behavior_ in your project. You can choose one approach for your entire project, or you can decide which to use for each component.
+
+Both `templateUrl` and `styleUrl` are relative to the directory in which the component resides.
+
+## Using components
+
+### Imports in the `@Component` decorator
+
+To use a component, [directive](guide/directives), or [pipe](guide/templates/pipes), you must add
+it to the `imports` array in the `@Component` decorator:
+
+```ts
+import {Component} from '@angular/core';
+import {ProfilePhoto} from './profile-photo';
+
+@Component({
+  // Import the `ProfilePhoto` component in
+  // order to use it in this component's template.
+  imports: [ProfilePhoto],
+  /* ... */
+})
+export class UserProfile {}
+```
+
+By default, Angular components are _standalone_, meaning that you can directly add them to the `imports` array of other components. Components created with an earlier version of Angular may instead specify `standalone: false` in their `@Component` decorator. For these components, you instead import the `NgModule` in which the component is defined. See the full [`NgModule` guide](guide/ngmodules/overview) for details.
+
+IMPORTANT: In Angular versions before 19.0.0, the `standalone` option defaults to `false`.
+
+### Showing components in a template
+
+Every component defines a [CSS selector](https://developer.mozilla.org/docs/Learn/CSS/Building_blocks/Selectors):
+
+```angular-ts {highlight: [2]}
+@Component({
+  selector: 'profile-photo',
+  ...
+})
+export class ProfilePhoto { }
+```
+
+See [Component Selectors](guide/components/selectors) for details about which types of selectors Angular supports and guidance on choosing a selector.
+
+You show a component by creating a matching HTML element in the template of _other_ components:
+
+```angular-ts {highlight: [8]}
+@Component({
+  selector: 'profile-photo',
+})
+export class ProfilePhoto {}
+
+@Component({
+  imports: [ProfilePhoto],
+  template: `<profile-photo />`,
+})
+export class UserProfile {}
+```
+
+Angular creates an instance of the component for every matching HTML element it encounters. The DOM element that matches a component's selector is referred to as that component's **host element**. The contents of a component's template are rendered inside its host element.
+
+The DOM rendered by a component, corresponding to that component's template, is called that
+component's **view**.
+
+In composing components in this way, **you can think of your Angular application as a tree of components**.
+
+```mermaid
+flowchart TD
+    A[AccountSettings]-->B
+    A-->C
+    B[UserProfile]-->D
+    B-->E
+    C[PaymentInfo]
+    D[ProfilePic]
+    E[UserBio]
+```
+
+This tree structure is important to understanding several other Angular concepts, including [dependency injection](guide/di) and [child queries](guide/components/queries).
+
+---
+
+### PAGE: Component selectors
+
+# Component selectors
+
+TIP: This guide assumes you've already read the [Essentials Guide](essentials). Read that first if you're new to Angular.
+
+Every component defines
+a [CSS selector](https://developer.mozilla.org/docs/Web/CSS/CSS_selectors) that determines how
+the component is used:
+
+```angular-ts {highlight: [2]}
+@Component({
+  selector: 'profile-photo',
+  ...
+})
+export class ProfilePhoto { }
+```
+
+You use a component by creating a matching HTML element in the templates of _other_ components:
+
+```angular-ts {highlight: [3]}
+@Component({
+  template: `
+    <profile-photo />
+    <button>Upload a new profile photo</button>`,
+  ...,
+})
+export class UserProfile { }
+```
+
+**Angular matches selectors statically at compile-time**. Changing the DOM at run-time, either via
+Angular bindings or with DOM APIs, does not affect the components rendered.
+
+**An element can match exactly one component selector.** If multiple component selectors match a
+single element, Angular reports an error.
+
+**Component selectors are case-sensitive.**
+
+## Types of selectors
+
+Angular supports a limited subset
+of [basic CSS selector types](https://developer.mozilla.org/docs/Web/CSS/CSS_Selectors) in
+component selectors:
+
+| **Selector type**  | **Description**                                                                                           

@@ -1,142 +1,139 @@
 # Angular — llms.txt (offline)
 
-> Version auto-contenue de https://angular.dev/llms.txt : le contenu complet de chaque page est inline dans ce dépôt (dossier `docs/`), aucun fetch externe requis.
-> Chaque entrée ci-dessous pointe vers le fichier local contenant la section complète.
-
-# Angular
-
-Angular — Deliver web apps with confidence 🚀
+> Version auto-contenue de https://angular.dev/llms.txt : le contenu complet de chaque page est inline dans ce dépôt (`docs/`), aucun fetch externe requis.
 
 ## Table of Contents
 
-- [What is Angular](docs/part01.md) — original: https://angular.dev/overview
-- [Installation guide](docs/part01.md) — original: https://angular.dev/installation
-- [Style Guide](docs/part01.md) — original: https://next.angular.dev/style-guide
+- [What is Angular](docs/table-of-contents/overview.md) — original: https://angular.dev/overview
+- [Installation guide](docs/table-of-contents/installation.md) — original: https://angular.dev/installation
+- [Style Guide](docs/table-of-contents/style-guide.md) — original: https://next.angular.dev/style-guide
 
 ## Components
 
-- [What is a component](docs/part01.md) — original: https://angular.dev/guide/components
-- [Component selectors](docs/part01.md) — original: https://angular.dev/guide/components/selectors
-- [Styling components](docs/part01.md) — original: https://angular.dev/guide/components/styling
-- [Accepting data with input properties](docs/part01.md) — original: https://angular.dev/guide/components/inputs
-- [Custom events with output](docs/part01.md) — original: https://angular.dev/guide/components/outputs
-- [Content projection](docs/part01.md) — original: https://angular.dev/guide/components/content-projection
-- [Component lifecycle](docs/part01.md) — original: https://angular.dev/guide/components/lifecycle
+- [What is a component](docs/components/components.md) — original: https://angular.dev/guide/components
+- [Component selectors](docs/components/selectors.md) — original: https://angular.dev/guide/components/selectors
+- [Styling components](docs/components/styling.md) — original: https://angular.dev/guide/components/styling
+- [Accepting data with input properties](docs/components/inputs.md) — original: https://angular.dev/guide/components/inputs
+- [Custom events with output](docs/components/outputs.md) — original: https://angular.dev/guide/components/outputs
+- [Content projection](docs/components/content-projection.md) — original: https://angular.dev/guide/components/content-projection
+- [Component lifecycle](docs/components/lifecycle.md) — original: https://angular.dev/guide/components/lifecycle
 
 ## Templates guides
 
-- [Template Overview](docs/part01.md) — original: https://angular.dev/guide/templates
-- [Adding event listeners](docs/part01.md) — original: https://angular.dev/guide/templates/event-listeners
-- [Binding text, properties and attributes](docs/part01.md) — original: https://angular.dev/guide/templates/binding
-- [Control Flow](docs/part01.md) — original: https://angular.dev/guide/templates/control-flow
-- [Template variable declaration](docs/part02.md) — original: https://angular.dev/guide/templates/variables
-- [Deferred loading of components](docs/part02.md) — original: https://angular.dev/guide/templates/defer
-- [Expression syntax](docs/part02.md) — original: https://angular.dev/guide/templates/expression-syntax
+- [Template Overview](docs/templates-guides/templates.md) — original: https://angular.dev/guide/templates
+- [Adding event listeners](docs/templates-guides/event-listeners.md) — original: https://angular.dev/guide/templates/event-listeners
+- [Binding text, properties and attributes](docs/templates-guides/binding.md) — original: https://angular.dev/guide/templates/binding
+- [Control Flow](docs/templates-guides/control-flow.md) — original: https://angular.dev/guide/templates/control-flow
+- [Template variable declaration](docs/templates-guides/variables.md) — original: https://angular.dev/guide/templates/variables
+- [Deferred loading of components](docs/templates-guides/defer.md) — original: https://angular.dev/guide/templates/defer
+- [Expression syntax](docs/templates-guides/expression-syntax.md) — original: https://angular.dev/guide/templates/expression-syntax
 
 ## Directives
 
-- [Directives overview](docs/part02.md) — original: https://angular.dev/guide/directives
-- [Attribute directives](docs/part02.md) — original: https://angular.dev/guide/directives/attribute-directives
-- [Structural directives](docs/part02.md) — original: https://angular.dev/guide/directives/structural-directives
-- [Directive composition](docs/part02.md) — original: https://angular.dev/guide/directives/directive-composition-api
-- [Optimizing images](docs/part02.md) — original: https://angular.dev/guide/image-optimization
+- [Directives overview](docs/directives/directives.md) — original: https://angular.dev/guide/directives
+- [Attribute directives](docs/directives/attribute-directives.md) — original: https://angular.dev/guide/directives/attribute-directives
+- [Structural directives](docs/directives/structural-directives.md) — original: https://angular.dev/guide/directives/structural-directives
+- [Directive composition](docs/directives/directive-composition-api.md) — original: https://angular.dev/guide/directives/directive-composition-api
+- [Optimizing images](docs/directives/image-optimization.md) — original: https://angular.dev/guide/image-optimization
 
-## Signals 
+## Signals
 
-- [Signals overview](docs/part02.md) — original: https://angular.dev/guide/signals
-- [Dependent state with linkedSignal](docs/part02.md) — original: https://angular.dev/guide/signals/linked-signal
-- [Async reactivity with resources](docs/part03.md) — original: https://angular.dev/guide/signals/resource
+- [Signals overview](docs/signals/signals.md) — original: https://angular.dev/guide/signals
+- [Dependent state with linkedSignal](docs/signals/linked-signal.md) — original: https://angular.dev/guide/signals/linked-signal
+- [Async reactivity with resources](docs/signals/resource.md) — original: https://angular.dev/guide/signals/resource
 
 ## Dependency injection (DI)
 
-- [Dependency Injection overview](docs/part03.md) — original: https://angular.dev/guide/di
-- [Creating and using services](docs/part03.md) — original: https://angular.dev/guide/di/creating-and-using-services
-- [Defining dependency providers](docs/part03.md) — original: https://angular.dev/guide/di/defining-dependency-providers
-- [Lazy loading services](docs/part03.md) — original: https://angular.dev/guide/di/lazy-loading-services
-- [Injection context](docs/part04.md) — original: https://angular.dev/guide/di/dependency-injection-context
-- [Hierarchical injectors](docs/part03.md) — original: https://angular.dev/guide/di/hierarchical-dependency-injection
-- [Optimizing Injection tokens](docs/part03.md) — original: https://angular.dev/guide/di/lightweight-injection-tokens
+- [Dependency Injection overview](docs/dependency-injection-di/di.md) — original: https://angular.dev/guide/di
+- [Creating and using services](docs/dependency-injection-di/creating-and-using-services.md) — original: https://angular.dev/guide/di/creating-and-using-services
+- [Defining dependency providers](docs/dependency-injection-di/defining-dependency-providers.md) — original: https://angular.dev/guide/di/defining-dependency-providers
+- [Lazy loading services](docs/dependency-injection-di/lazy-loading-services.md) — original: https://angular.dev/guide/di/lazy-loading-services
+- [Injection context](docs/dependency-injection-di/dependency-injection-context.md) — original: https://angular.dev/guide/di/dependency-injection-context
+- [Hierarchical injectors](docs/dependency-injection-di/hierarchical-dependency-injection.md) — original: https://angular.dev/guide/di/hierarchical-dependency-injection
+- [Optimizing Injection tokens](docs/dependency-injection-di/lightweight-injection-tokens.md) — original: https://angular.dev/guide/di/lightweight-injection-tokens
 
-## RxJS 
+## RxJS
 
-- [RxJS interop with Angular signals](docs/part04.md) — original: https://angular.dev/ecosystem/rxjs-interop
-- [Component output interop](docs/part04.md) — original: https://angular.dev/ecosystem/rxjs-interop/output-interop
+- [RxJS interop with Angular signals](docs/rxjs/rxjs-interop.md) — original: https://angular.dev/ecosystem/rxjs-interop
+- [Component output interop](docs/rxjs/output-interop.md) — original: https://angular.dev/ecosystem/rxjs-interop/output-interop
 
 ## Loading Data
 
-- [HttpClient overview](docs/part04.md) — original: https://angular.dev/guide/http
-- [Setting up the HttpClient](docs/part04.md) — original: https://angular.dev/guide/http/setup
-- [Making requests](docs/part04.md) — original: https://angular.dev/guide/http/making-requests
-- [Intercepting requests](docs/part04.md) — original: https://angular.dev/guide/http/interceptors
-- [Reactive data fetching with httpResource](docs/part04.md) — original: https://angular.dev/guide/http/http-resource
-- [Testing](docs/part04.md) — original: https://angular.dev/guide/http/testing
+- [HttpClient overview](docs/loading-data/http.md) — original: https://angular.dev/guide/http
+- [Setting up the HttpClient](docs/loading-data/setup.md) — original: https://angular.dev/guide/http/setup
+- [Making requests](docs/loading-data/making-requests.md) — original: https://angular.dev/guide/http/making-requests
+- [Intercepting requests](docs/loading-data/interceptors.md) — original: https://angular.dev/guide/http/interceptors
+- [Reactive data fetching with httpResource](docs/loading-data/http-resource.md) — original: https://angular.dev/guide/http/http-resource
+- [Testing](docs/loading-data/testing.md) — original: https://angular.dev/guide/http/testing
 
 ## Forms
-- [Forms overview](docs/part04.md) — original: https://angular.dev/guide/forms
-- [Reactive Forms](docs/part04.md) — original: https://angular.dev/guide/forms/reactive-forms
-- [Strictly types forms](docs/part05.md) — original: https://angular.dev/guide/forms/typed-forms
-- [Template driven forms](docs/part05.md) — original: https://angular.dev/guide/forms/template-driven-forms
-- [Validate forms input](docs/part05.md) — original: https://angular.dev/guide/forms/form-validation
-- [Building dynamic forms](docs/part05.md) — original: https://angular.dev/guide/forms/dynamic-forms
-- [Signal Forms](docs/part05.md) — original: https://angular.dev/guide/forms/signals/overview
+
+- [Forms overview](docs/forms/forms.md) — original: https://angular.dev/guide/forms
+- [Reactive Forms](docs/forms/reactive-forms.md) — original: https://angular.dev/guide/forms/reactive-forms
+- [Strictly types forms](docs/forms/typed-forms.md) — original: https://angular.dev/guide/forms/typed-forms
+- [Template driven forms](docs/forms/template-driven-forms.md) — original: https://angular.dev/guide/forms/template-driven-forms
+- [Validate forms input](docs/forms/form-validation.md) — original: https://angular.dev/guide/forms/form-validation
+- [Building dynamic forms](docs/forms/dynamic-forms.md) — original: https://angular.dev/guide/forms/dynamic-forms
+- [Signal Forms](docs/forms/overview-2.md) — original: https://angular.dev/guide/forms/signals/overview
 
 ## Accessibility
-- [Angular Aria overview](docs/part05.md) — original: https://angular.dev/guide/aria/overview
+
+- [Angular Aria overview](docs/accessibility/overview-3.md) — original: https://angular.dev/guide/aria/overview
 
 ## Routing
-- [Routing overview](docs/part05.md) — original: https://angular.dev/guide/routing
-- [Define routes](docs/part05.md) — original: https://angular.dev/guide/routing/define-routes
-- [Route loading strategies](docs/part05.md) — original: https://angular.dev/guide/routing/loading-strategies
-- [Show routes with outlets](docs/part05.md) — original: https://angular.dev/guide/routing/show-routes-with-outlets
-- [Navigate to routes](docs/part05.md) — original: https://angular.dev/guide/routing/navigate-to-routes
-- [Read route state](docs/part05.md) — original: https://angular.dev/guide/routing/read-route-state
-- [Common routing tasks](docs/part06.md) — original: https://angular.dev/guide/routing/common-router-tasks
-- [Creating custom route matches](docs/part06.md) — original: https://angular.dev/guide/routing/routing-with-urlmatcher
+
+- [Routing overview](docs/routing/routing.md) — original: https://angular.dev/guide/routing
+- [Define routes](docs/routing/define-routes.md) — original: https://angular.dev/guide/routing/define-routes
+- [Route loading strategies](docs/routing/loading-strategies.md) — original: https://angular.dev/guide/routing/loading-strategies
+- [Show routes with outlets](docs/routing/show-routes-with-outlets.md) — original: https://angular.dev/guide/routing/show-routes-with-outlets
+- [Navigate to routes](docs/routing/navigate-to-routes.md) — original: https://angular.dev/guide/routing/navigate-to-routes
+- [Read route state](docs/routing/read-route-state.md) — original: https://angular.dev/guide/routing/read-route-state
+- [Common routing tasks](docs/routing/common-router-tasks.md) — original: https://angular.dev/guide/routing/common-router-tasks
+- [Creating custom route matches](docs/routing/routing-with-urlmatcher.md) — original: https://angular.dev/guide/routing/routing-with-urlmatcher
 
 ## Server Side Rendering (SSR)
 
-- [SSR Overview](docs/part06.md) — original: https://angular.dev/guide/performance
-- [Server and hybrid rendering](docs/part06.md) — original: https://angular.dev/guide/ssr
-- [Rendering strategies in Angular](docs/part06.md) — original: https://angular.dev/guide/routing/rendering-strategies
-- [Hydration](docs/part06.md) — original: https://angular.dev/guide/hydration
-- [Incremental Hydration](docs/part06.md) — original: https://angular.dev/guide/incremental-hydration
-
-# CLI 
-- [Angular CLI Overview](docs/part06.md) — original: https://angular.dev/tools/cli
+- [SSR Overview](docs/server-side-rendering-ssr/performance.md) — original: https://angular.dev/guide/performance
+- [Server and hybrid rendering](docs/server-side-rendering-ssr/ssr.md) — original: https://angular.dev/guide/ssr
+- [Rendering strategies in Angular](docs/server-side-rendering-ssr/rendering-strategies.md) — original: https://angular.dev/guide/routing/rendering-strategies
+- [Hydration](docs/server-side-rendering-ssr/hydration.md) — original: https://angular.dev/guide/hydration
+- [Incremental Hydration](docs/server-side-rendering-ssr/incremental-hydration.md) — original: https://angular.dev/guide/incremental-hydration
+- [Angular CLI Overview](docs/server-side-rendering-ssr/cli.md) — original: https://angular.dev/tools/cli
 
 ## Testing
 
-- [Testing overview](docs/part06.md) — original: https://angular.dev/guide/testing
-- [Testing coverage](docs/part06.md) — original: https://angular.dev/guide/testing/code-coverage
-- [Testing services](docs/part06.md) — original: https://angular.dev/guide/testing/services
-- [Basics of component testing](docs/part07.md) — original: https://angular.dev/guide/testing/components-basics
-- [Component testing scenarios](docs/part07.md) — original: https://angular.dev/guide/testing/components-scenarios
-- [Testing attribute directives](docs/part07.md) — original: https://angular.dev/guide/testing/attribute-directives
-- [Testing pipes](docs/part07.md) — original: https://angular.dev/guide/testing/pipes
-- [Debugging tests](docs/part07.md) — original: https://angular.dev/guide/testing/debugging
-- [Testing utility apis](docs/part07.md) — original: https://angular.dev/guide/testing/utility-apis
-- [Component harness overview](docs/part07.md) — original: https://angular.dev/guide/testing/component-harnesses-overview
-- [Using component harness in tests](docs/part07.md) — original: https://angular.dev/guide/testing/using-component-harnesses
-- [Creating a component harness for your components](docs/part07.md) — original: https://angular.dev/guide/testing/creating-component-harnesses
+- [Testing overview](docs/testing/testing-2.md) — original: https://angular.dev/guide/testing
+- [Testing coverage](docs/testing/code-coverage.md) — original: https://angular.dev/guide/testing/code-coverage
+- [Testing services](docs/testing/services.md) — original: https://angular.dev/guide/testing/services
+- [Basics of component testing](docs/testing/components-basics.md) — original: https://angular.dev/guide/testing/components-basics
+- [Component testing scenarios](docs/testing/components-scenarios.md) — original: https://angular.dev/guide/testing/components-scenarios
+- [Testing attribute directives](docs/testing/attribute-directives-2.md) — original: https://angular.dev/guide/testing/attribute-directives
+- [Testing pipes](docs/testing/pipes.md) — original: https://angular.dev/guide/testing/pipes
+- [Debugging tests](docs/testing/debugging.md) — original: https://angular.dev/guide/testing/debugging
+- [Testing utility apis](docs/testing/utility-apis.md) — original: https://angular.dev/guide/testing/utility-apis
+- [Component harness overview](docs/testing/component-harnesses-overview.md) — original: https://angular.dev/guide/testing/component-harnesses-overview
+- [Using component harness in tests](docs/testing/using-component-harnesses.md) — original: https://angular.dev/guide/testing/using-component-harnesses
+- [Creating a component harness for your components](docs/testing/creating-component-harnesses.md) — original: https://angular.dev/guide/testing/creating-component-harnesses
 
 ## Animations
-- [Animations your content](docs/part08.md) — original: https://angular.dev/guide/animations/css
-- [Route transition animation](docs/part08.md) — original: https://angular.dev/guide/routing/route-transition-animations
-- [Migrating to native CSS animations](docs/part08.md) — original: https://next.angular.dev/guide/animations/migration
+
+- [Animations your content](docs/animations/css.md) — original: https://angular.dev/guide/animations/css
+- [Route transition animation](docs/animations/route-transition-animations.md) — original: https://angular.dev/guide/routing/route-transition-animations
+- [Migrating to native CSS animations](docs/animations/migration.md) — original: https://next.angular.dev/guide/animations/migration
 
 ## APIs
-- [API reference](docs/part08.md) — original: https://angular.dev/api
-- [CLI command reference](docs/part08.md) — original: https://angular.dev/cli
 
+- [API reference](docs/apis/api.md) — original: https://angular.dev/api
+- [CLI command reference](docs/apis/cli-2.md) — original: https://angular.dev/cli
 
 ## Others
 
-- [Zoneless](docs/part08.md) — original: https://angular.dev/guide/zoneless
-- [Error encyclopedia](docs/part08.md) — original: https://angular.dev/errors
-- [Extended diagnostics](docs/part08.md) — original: https://angular.dev/extended-diagnostics
-- [Update guide](docs/part08.md) — original: https://angular.dev/update-guide
-- [Contribute to Angular](docs/part08.md) — original: https://github.com/angular/angular/blob/main/CONTRIBUTING.md
-- [Angular's Roadmap](docs/part08.md) — original: https://angular.dev/roadmap
-- [Keeping your projects up-to-date](docs/part09.md) — original: https://angular.dev/update
-- [Security](docs/part09.md) — original: https://angular.dev/best-practices/security
-- [Internationalization (i18n)](docs/part09.md) — original: https://angular.dev/guide/i18n
+- [Zoneless](docs/others/zoneless.md) — original: https://angular.dev/guide/zoneless
+- [Error encyclopedia](docs/others/errors.md) — original: https://angular.dev/errors
+- [Extended diagnostics](docs/others/extended-diagnostics.md) — original: https://angular.dev/extended-diagnostics
+- [Update guide](docs/others/update-guide.md) — original: https://angular.dev/update-guide
+- [Contribute to Angular](docs/others/contributingmd.md) — original: https://github.com/angular/angular/blob/main/CONTRIBUTING.md
+- [Angular's Roadmap](docs/others/roadmap.md) — original: https://angular.dev/roadmap
+- [Keeping your projects up-to-date](docs/others/update.md) — original: https://angular.dev/update
+- [Security](docs/others/security.md) — original: https://angular.dev/best-practices/security
+- [Internationalization (i18n)](docs/others/i18n.md) — original: https://angular.dev/guide/i18n

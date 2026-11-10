@@ -1,0 +1,839 @@
+ootstrapApplication(App, {
+  providers: [provideClientHydration()],
+});
+```
+
+NOTE: Incremental Hydration depends on and enables [event replay](guide/hydration#capturing-and-replaying-events) automatically. If you already have `withEventReplay()` in your list, you can safely remove it.
+
+To opt out of incremental hydration, use `withNoIncrementalHydration()`:
+
+```ts
+import {
+  bootstrapApplication,
+  provideClientHydration,
+  withNoIncrementalHydration,
+} from '@angular/platform-browser';
+
+bootstrapApplication(App, {
+  providers: [provideClientHydration(withNoIncrementalHydration())],
+});
+```
+
+## How does incremental hydration work?
+
+Incremental hydration builds on top of full-application [hydration](guide/hydration), [deferrable views](/guide/templates/defer), and [event replay](guide/hydration#capturing-and-replaying-events). With incremental hydration, you can add additional triggers to `@defer` blocks that define incremental hydration boundaries. Adding a `hydrate` trigger to a defer block tells Angular that it should load that defer block's dependencies during server-side rendering and render the main template rather than the `@placeholder`. When client-side rendering, the dependencies are still deferred, and the defer block content stays dehydrated until its `hydrate` trigger fires. That trigger tells the defer block to fetch its dependencies and hydrate the content. Any browser events, specifically those that match listeners registered in your component, that are triggered by the user prior to hydration are queued up and replayed once the hydration process is complete.
+
+## Controlling hydration of content with triggers
+
+You can specify **hydrate triggers** that control when Angular loads and hydrates deferred content. These are additional triggers that can be used alongside regular `@defer` triggers.
+
+Each `@defer` block may have multiple hydrate event triggers, separated with a semicolon (`;`). Angular triggers hydration when _any_ of the triggers fire.
+
+There are three types of hydrate triggers: `hydrate on`, `hydrate when`, and `hydrate never`.
+
+### `hydrate on`
+
+`hydrate on` specifies a condition for when hydration is triggered for the `@defer` block.
+
+The available triggers are as follows:
+
+| Trigger                                             | Description                                                            |
+| --------------------------------------------------- | ---------------------------------------------------------------------- |
+| [`hydrate on idle`](#hydrate-on-idle)               | Triggers when the browser is idle. Supports an optional timeout.       |
+| [`hydrate on viewport`](#hydrate-on-viewport)       | Triggers when specified content enters the viewport                    |
+| [`hydrate on interaction`](#hydrate-on-interaction) | Triggers when the user interacts with specified element                |
+| [`hydrate on hover`](#hydrate-on-hover)             | Triggers when the mouse hovers over specified area                     |
+| [`hydrate on immediate`](#hydrate-on-immediate)     | Triggers immediately after non-deferred content has finished rendering |
+| [`hydrate on timer`](#hydrate-on-timer)             | Triggers after a specific duration                                     |
+
+#### `hydrate on idle`
+
+The `hydrate on idle` trigger loads the deferrable view's dependencies and hydrates the content once the browser has reached an idle state, based on `requestIdleCallback`.
+
+You can optionally specify a timeout in milliseconds that is passed to [`requestIdleCallback`](https://developer.mozilla.org/docs/Web/API/Window/requestIdleCallback). If the browser doesn't schedule the callback soon enough, the work will run no later than the specified timeout.
+
+```angular-html
+@defer (hydrate on idle) {
+  <large-cmp />
+} @placeholder {
+  <div>Large component placeholder</div>
+}
+
+<!-- With a 500ms timeout -->
+@defer (hydrate on idle(500)) {
+  <large-cmp />
+}
+```
+
+#### `hydrate on viewport`
+
+The `hydrate on viewport` trigger loads the deferrable view's dependencies and hydrates the corresponding page of the app when the specified content enters the viewport using the
+[Intersection Observer API](https://developer.mozilla.org/docs/Web/API/Intersection_Observer_API).
+
+```angular-html
+@defer (hydrate on viewport) {
+  <large-cmp />
+} @placeholder {
+  <div>Large component placeholder</div>
+}
+```
+
+#### `hydrate on interaction`
+
+The `hydrate on interaction` trigger loads the deferrable view's dependencies and hydrates the content when the user interacts with the specified element through
+`click` or `keydown` events.
+
+```angular-html
+@defer (hydrate on interaction) {
+  <large-cmp />
+} @placeholder {
+  <div>Large component placeholder</div>
+}
+```
+
+#### `hydrate on hover`
+
+The `hydrate on hover` trigger loads the deferrable view's dependencies and hydrates the content when the mouse has hovered over the triggered area through the
+`mouseover` and `focusin` events.
+
+```angular-html
+@defer (hydrate on hover) {
+  <large-cmp />
+} @placeholder {
+  <div>Large component placeholder</div>
+}
+```
+
+#### `hydrate on immediate`
+
+The `hydrate on immediate` trigger loads the deferrable view's dependencies and hydrates the content immediately. This means that the deferred block loads as soon
+as all other non-deferred content has finished rendering.
+
+```angular-html
+@defer (hydrate on immediate) {
+  <large-cmp />
+} @placeholder {
+  <div>Large component placeholder</div>
+}
+```
+
+#### `hydrate on timer`
+
+The `hydrate on timer` trigger loads the deferrable view's dependencies and hydrates the content after a specified duration.
+
+```angular-html
+@defer (hydrate on timer(500ms)) {
+  <large-cmp />
+} @placeholder {
+  <div>Large component placeholder</div>
+}
+```
+
+The duration parameter must be specified in milliseconds (`ms`) or seconds (`s`).
+
+### `hydrate when`
+
+The `hydrate when` trigger accepts a custom conditional expression and loads the deferrable view's dependencies and hydrates the content when the
+condition becomes truthy.
+
+```angular-html
+@defer (hydrate when condition) {
+  <large-cmp />
+} @placeholder {
+  <div>Large component placeholder</div>
+}
+```
+
+NOTE: `hydrate when` conditions only trigger when they are the top-most dehydrated `@defer` block. The condition provided for the trigger is
+specified in the parent component, which needs to exist before it can be triggered. If the parent block is dehydrated, that expression will not yet
+be resolvable by Angular.
+
+### `hydrate never`
+
+The `hydrate never` allows users to specify that the content in the defer block should remain dehydrated indefinitely, effectively becoming static
+content. Note that this applies to the initial render only. During a subsequent client-side render, a `@defer` block with `hydrate never` would
+still fetch dependencies, as hydration only applies to initial load of server-side rendered content. In the example below, subsequent client-side
+renders would load the `@defer` block dependencies on viewport.
+
+```angular-html
+@defer (on viewport; hydrate never) {
+  <large-cmp />
+} @placeholder {
+  <div>Large component placeholder</div>
+}
+```
+
+NOTE: Using `hydrate never` prevents hydration of the entire nested subtree of a given `@defer` block. No other `hydrate` triggers fire for content nested underneath that block.
+
+## Hydrate triggers alongside regular triggers
+
+Hydrate triggers are additional triggers that are used alongside regular triggers on a `@defer` block. Hydration is an initial load optimization, and that means hydrate triggers only apply to that initial load. Any subsequent client side render will still use the regular trigger.
+
+```angular-html
+@defer (on idle; hydrate on interaction) {
+  <example-cmp />
+} @placeholder {
+  <div>Example Placeholder</div>
+}
+```
+
+In this example, on the initial load, the `hydrate on interaction` applies. Hydration will be triggered on interaction with the `<example-cmp />` component. On any subsequent page load that is client-side rendered, for example when a user clicks a routerLink that loads a page with this component, the `on idle` will apply.
+
+## How does incremental hydration work with nested `@defer` blocks?
+
+Angular's component and dependency system is hierarchical, which means hydrating any component requires all of its parents also be hydrated. So if hydration is triggered for a child `@defer` block of a nested set of dehydrated `@defer` blocks, hydration is triggered from the top-most dehydrated `@defer` block down to the triggered child and fire in that order.
+
+```angular-html
+@defer (hydrate on interaction) {
+  <parent-block-cmp />
+  @defer (hydrate on hover) {
+    <child-block-cmp />
+  } @placeholder {
+    <div>Child placeholder</div>
+  }
+} @placeholder {
+  <div>Parent Placeholder</div>
+}
+```
+
+In the above example, hovering over the nested `@defer` block triggers hydration. The parent `@defer` block with the `<parent-block-cmp />` hydrates first, then the child `@defer` block with `<child-block-cmp />` hydrates after.
+
+## Constraints
+
+Incremental hydration has the same constraints as full-application hydration, including limits on direct DOM manipulation and requiring valid HTML structure. Visit the [Hydration guide constraints](guide/hydration#constraints) section for more details.
+
+## Do I still need to specify `@placeholder` blocks?
+
+Yes. `@placeholder` block content is not used for incremental hydration, but a `@placeholder` is still necessary for subsequent client-side rendering cases. If your content was not on the route that was part of the initial load, then any navigation to the route that has your `@defer` block content renders like a regular `@defer` block. So the `@placeholder` is rendered in those client-side rendering cases.
+
+---
+
+### PAGE: Angular CLI Overview
+
+# The Angular CLI
+
+The Angular CLI is a command-line interface tool which allows you to scaffold, develop, test, deploy, and maintain Angular applications directly from a command shell.
+
+Angular CLI is published on npm as the `@angular/cli` package and includes a binary named `ng`. Commands invoking `ng` are using the Angular CLI.
+
+<docs-callout title="Try Angular without local setup">
+
+If you are new to Angular, you might want to start with [Try it now!](tutorials/learn-angular), which introduces the essentials of Angular in the context of a ready-made basic online store app for you to examine and modify.
+This standalone tutorial takes advantage of the interactive [StackBlitz](https://stackblitz.com) environment for online development.
+You don't need to set up your local environment until you're ready.
+
+</docs-callout>
+
+<docs-card-container>
+  <docs-card title="Getting Started" link="Get Started" href="tools/cli/setup-local">
+    Install Angular CLI to create and build your first app.
+  </docs-card>
+  <docs-card title="Command Reference" link="Learn More" href="cli">
+    Discover CLI commands to make you more productive with Angular.
+  </docs-card>
+  <docs-card title="Schematics" link="Learn More" href="tools/cli/schematics">
+    Create and run schematics to generate and modify source files in your application automatically.
+  </docs-card>
+  <docs-card title="Builders" link="Learn More" href="tools/cli/cli-builder">
+    Create and run builders to perform complex transformations from your source code to generated build outputs.
+  </docs-card>
+</docs-card-container>
+
+## CLI command-language syntax
+
+Angular CLI roughly follows Unix/POSIX conventions for option syntax.
+
+### Boolean options
+
+Boolean options have two forms: `--this-option` sets the flag to `true`, `--no-this-option` sets it to `false`.
+You can also use `--this-option=false` or `--this-option=true`.
+If neither option is supplied, the flag remains in its default state, as listed in the reference documentation.
+
+### Array options
+
+Array options can be provided in two forms: `--option value1 value2` or `--option value1 --option value2`.
+
+### Key/value options
+
+Some options like `--define` expect an array of `key=value` pairs as their values.
+Just like array options, key/value options can be provided in two forms:
+`--define 'KEY_1="value1"' KEY_2=true` or `--define 'KEY_1="value1"' --define KEY_2=true`.
+
+### Relative paths
+
+Options that specify files can be given as absolute paths, or as paths relative to the current working directory, which is generally either the workspace or project root.
+
+---
+
+## CAT: testing
+
+### PAGE: Testing overview
+
+# Unit testing
+
+Testing your Angular application helps you check that it is working as you expect. Unit tests are crucial for catching bugs early, ensuring code quality, and facilitating safe refactoring.
+
+NOTE: This guide covers the default testing setup for new Angular CLI projects, which uses Vitest. If you are migrating an existing project from Karma, see the [Migrating from Karma to Vitest guide](guide/testing/migrating-to-vitest). Karma is still supported; for more information, see the [Karma testing guide](guide/testing/karma).
+
+## Set up for testing
+
+The Angular CLI downloads and installs everything you need to test an Angular application with the [Vitest testing framework](https://vitest.dev). New projects include `vitest` and `jsdom` by default.
+
+Vitest runs your unit tests in a Node.js environment. To simulate the browser's DOM, Vitest uses a library called `jsdom`. This allows for faster test execution by avoiding the overhead of launching a browser. You can swap `jsdom` for an alternative like `happy-dom` by installing it and uninstalling `jsdom`. Currently, `jsdom` and `happy-dom` are the supported DOM emulation libraries.
+
+The project you create with the CLI is immediately ready to test. Run the [`ng test`](cli/test) command:
+
+```shell
+ng test
+```
+
+The `ng test` command builds the application in _watch mode_ and launches the [Vitest test runner](https://vitest.dev).
+
+The console output looks like this:
+
+```shell
+ ✓ src/app/app.spec.ts (2)
+   ✓ App should create the app
+   ✓ App should render title
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  18:18:01
+   Duration  2.46s (transform 615ms, setup 2ms, collect 2.21s, tests 5ms)
+```
+
+The `ng test` command also watches your files for changes. If you modify a file and save it, the tests will run again.
+
+## Configuration
+
+The Angular CLI handles most of the Vitest configuration for you. You can customize the test behavior by modifying the `test` target options in your `angular.json` file.
+
+### Angular.json options
+
+- `include`: Glob patterns for files to include for testing. Defaults to `['**/*.spec.ts', '**/*.test.ts']`.
+- `exclude`: Glob patterns for files to exclude from testing.
+- `setupFiles`: A list of paths to global setup files (e.g., polyfills or global mocks) that are executed before your tests.
+- `providersFile`: The path to a file that exports a default array of Angular providers for the test environment. This is useful for setting up global test providers which are injected into your tests.
+- `coverage`: A boolean to enable or disable code coverage reporting. Defaults to `false`.
+- `browsers`: An array of browser names to run tests in a real browser (e.g., `["chromium"]`). Requires a browser provider to be installed. See the [Running tests in a browser](#running-tests-in-a-browser) section for more details.
+
+### Global test setup and providers
+
+The `setupFiles` and `providersFile` options are particularly useful for managing global test configuration.
+
+For example, you could create a `src/test-providers.ts` file to provide `provideHttpClientTesting` to all your tests:
+
+```typescript {header: "src/test-providers.ts"}
+import {EnvironmentProviders, Provider} from '@angular/core';
+import {provideHttpClientTesting} from '@angular/common/http/testing';
+
+const testProviders: (Provider | EnvironmentProviders)[] = [provideHttpClientTesting()];
+
+export default testProviders;
+```
+
+You would then reference this file in your `angular.json`:
+
+```json
+{
+  "projects": {
+    "your-project-name": {
+      "architect": {
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "providersFile": "src/test-providers.ts"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+HELPFUL: When creating new TypeScript files for test setup or providers, like `src/test-providers.ts`, ensure they are included in your project's test TypeScript configuration file (typically `tsconfig.spec.json`). This allows the TypeScript compiler to properly process these files during testing.
+
+### Advanced Vitest configuration
+
+For advanced use cases, you can provide a custom Vitest configuration file using the `runnerConfig` option in `angular.json`.
+
+IMPORTANT: While using a custom configuration enables advanced options, the Angular team does not provide support for the contents of the configuration file or for any third-party plugins. The CLI will also override certain properties (`test.projects`, `test.include`) to ensure proper integration.
+
+You can create a Vitest configuration file (e.g., `vitest-base.config.ts`) and reference it in your `angular.json`:
+
+```json
+{
+  "projects": {
+    "your-project-name": {
+      "architect": {
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "runnerConfig": "vitest-base.config.ts"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+You can also generate a base configuration file using the CLI:
+
+```shell
+ng generate config vitest
+```
+
+This creates a `vitest-base.config.ts` file that you can customize.
+
+HELPFUL: Read more about Vitest configuration in the [official Vitest documentation](https://vitest.dev/config/).
+
+## Code coverage
+
+You can generate a code coverage report by adding the `--coverage` flag to the `ng test` command. The report is generated in the `coverage/` directory.
+
+For more detailed information, see the [Code coverage guide](guide/testing/code-coverage).
+
+## Running tests in a browser
+
+While the default Node.js environment is faster for most unit tests, you can also run your tests in a real browser. This is useful for tests that rely on browser-specific APIs (like rendering) or for debugging.
+
+To run tests in a browser, you must first install a browser provider. Read more about Vitest's browser mode in the [official documentation](https://vitest.dev/guide/browser).
+
+Once the provider is installed, you can run your tests in the browser by configuring the `browsers` option in `angular.json` or by using the `--browsers` CLI flag. Tests run in a headed browser by default. If the `CI` environment variable is set, headless mode is used instead. To explicitly control headless mode, you can suffix the browser name with `Headless` (e.g., `chromiumHeadless`).
+
+```bash
+# Example for Playwright (headed)
+ng test --browsers=chromium
+
+# Example for Playwright (headless)
+ng test --browsers=chromiumHeadless
+
+# Example for WebdriverIO (headed)
+ng test --browsers=chrome
+
+# Example for WebdriverIO (headless)
+ng test --browsers=chromeHeadless
+```
+
+Choose one of the following browser providers based on your needs:
+
+### Playwright
+
+[Playwright](https://playwright.dev/) is a browser automation library that supports Chromium, Firefox, and WebKit.
+
+<docs-code-multifile>
+  <docs-code header="npm" language="shell">
+    npm install --save-dev @vitest/browser-playwright playwright
+  </docs-code>
+  <docs-code header="yarn" language="shell">
+    yarn add --dev @vitest/browser-playwright playwright
+  </docs-code>
+  <docs-code header="pnpm" language="shell">
+    pnpm add -D @vitest/browser-playwright playwright
+  </docs-code>
+  <docs-code header="bun" language="shell">
+    bun add --dev @vitest/browser-playwright playwright
+  </docs-code>
+</docs-code-multifile>
+
+### WebdriverIO
+
+[WebdriverIO](https://webdriver.io/) is a browser and mobile automation test framework that supports Chrome, Firefox, Safari, and Edge.
+
+<docs-code-multifile>
+  <docs-code header="npm" language="shell">
+    npm install --save-dev @vitest/browser-webdriverio webdriverio
+  </docs-code>
+  <docs-code header="yarn" language="shell">
+    yarn add --dev @vitest/browser-webdriverio webdriverio
+  </docs-code>
+  <docs-code header="pnpm" language="shell">
+    pnpm add -D @vitest/browser-webdriverio webdriverio
+  </docs-code>
+  <docs-code header="bun" language="shell">
+    bun add --dev @vitest/browser-webdriverio webdriverio
+  </docs-code>
+</docs-code-multifile>
+
+### Preview
+
+The `@vitest/browser-preview` provider is designed for WebContainer environments like StackBlitz and is not intended for use in CI/CD.
+
+<docs-code-multifile>
+  <docs-code header="npm" language="shell">
+    npm install --save-dev @vitest/browser-preview
+  </docs-code>
+  <docs-code header="yarn" language="shell">
+    yarn add --dev @vitest/browser-preview
+  </docs-code>
+  <docs-code header="pnpm" language="shell">
+    pnpm add -D @vitest/browser-preview
+  </docs-code>
+  <docs-code header="bun" language="shell">
+    bun add --dev @vitest/browser-preview
+  </docs-code>
+</docs-code-multifile>
+
+HELPFUL: For more advanced browser-specific configuration, see the [Advanced Vitest configuration](#advanced-vitest-configuration) section.
+
+## Other test frameworks
+
+You can also unit test an Angular application with other testing libraries and test runners. Each library and runner has its own installation procedures, configuration, and syntax.
+
+## Testing in continuous integration
+
+A robust test suite is a key part of a continuous integration (CI) pipeline. CI servers let you automate your tests to run on every commit and pull request.
+
+To test your Angular application in a CI server, run the standard test command:
+
+```shell
+ng test
+```
+
+Most CI servers set a `CI=true` environment variable, which `ng test` detects. This automatically configures your tests to run in a non-interactive, single-run mode.
+
+If your CI server does not set this variable, or if you need to force single-run mode manually, you can use the `--no-watch` and `--no-progress` flags:
+
+```shell
+ng test --no-watch --no-progress
+```
+
+## More information on testing
+
+After you've set up your application for testing, you might find the following testing guides useful.
+
+|                                                                    | Details                                                                           |
+| :----------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
+| [Code coverage](guide/testing/code-coverage)                       | How much of your app your tests are covering and how to specify required amounts. |
+| [Testing services](guide/testing/services)                         | How to test the services your application uses.                                   |
+| [Basics of testing components](guide/testing/components-basics)    | Basics of testing Angular components.                                             |
+| [Component testing scenarios](guide/testing/components-scenarios)  | Various kinds of component testing scenarios and use cases.                       |
+| [Testing attribute directives](guide/testing/attribute-directives) | How to test your attribute directives.                                            |
+| [Testing pipes](guide/testing/pipes)                               | How to test pipes.                                                                |
+| [Debugging tests](guide/testing/debugging)                         | Common testing bugs.                                                              |
+| [Testing utility APIs](guide/testing/utility-apis)                 | Angular testing features.                                                         |
+
+---
+
+### PAGE: Testing coverage
+
+# Code coverage
+
+Code coverage reports show you any parts of your code base that might not be properly tested by your unit tests.
+
+## Prerequisites
+
+To generate code coverage reports with Vitest, you must install the `@vitest/coverage-v8` package:
+
+<docs-code-multifile>
+  <docs-code header="npm" language="shell">
+    npm install --save-dev @vitest/coverage-v8
+  </docs-code>
+  <docs-code header="yarn" language="shell">
+    yarn add --dev @vitest/coverage-v8
+  </docs-code>
+  <docs-code header="pnpm" language="shell">
+    pnpm add -D @vitest/coverage-v8
+  </docs-code>
+  <docs-code header="bun" language="shell">
+    bun add --dev @vitest/coverage-v8
+  </docs-code>
+</docs-code-multifile>
+
+## Generating a report
+
+To generate a coverage report, add the `--coverage` flag to the `ng test` command:
+
+```shell
+ng test --coverage
+```
+
+After the tests run, the command creates a new `coverage/` directory in the project. Open the `index.html` file to see a report with your source code and code coverage values.
+
+If you want to create code-coverage reports every time you test, you can set the `coverage` option to `true` in your `angular.json` file:
+
+```json
+{
+  "projects": {
+    "your-project-name": {
+      "architect": {
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "coverage": true
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Enforcing code coverage thresholds
+
+The code coverage percentages let you estimate how much of your code is tested. If your team decides on a minimum amount to be unit tested, you can enforce this minimum in your configuration.
+
+For example, suppose you want the code base to have a minimum of 80% code coverage. To enable this, add the `coverageThresholds` option to your `angular.json` file:
+
+```json
+{
+  "projects": {
+    "your-project-name": {
+      "architect": {
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "coverage": true,
+            "coverageThresholds": {
+              "statements": 80,
+              "branches": 80,
+              "functions": 80,
+              "lines": 80
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Now, if your coverage drops below 80% when you run your tests, the command will fail.
+
+## Advanced configuration
+
+You can configure several other coverage options in your `angular.json` file:
+
+- `coverageInclude`: Glob patterns of files to include in the coverage report.
+- `coverageExclude`: Glob patterns of files to exclude in the coverage report.
+- `coverageReporters`: An array of reporters to use (e.g., `html`, `lcov`, `json`).
+- `coverageWatermarks`: An object specifying `[low, high]` watermarks for the HTML reporter, which can affect the color-coding of the report.
+
+```json
+{
+  "projects": {
+    "your-project-name": {
+      "architect": {
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "coverage": true,
+            "coverageReporters": ["html", "lcov"],
+            "coverageWatermarks": {
+              "statements": [50, 80],
+              "branches": [50, 80],
+              "functions": [50, 80],
+              "lines": [50, 80]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+### PAGE: Testing services
+
+# Testing services
+
+Services typically contain your application's business logic that components rely on. Testing services verifies that the logic works correctly in isolation, independent of any component or template.
+
+This guide uses [Vitest](https://vitest.dev/), which Angular CLI projects include by default. For more on testing setup, see the [testing overview guide](guide/testing#set-up-for-testing).
+
+## Testing a service
+
+Consider a `Calculator` service that performs basic arithmetic:
+
+```ts { header: 'calculator.ts' }
+import {Service} from '@angular/core';
+
+@Service()
+export class Calculator {
+  add(a: number, b: number): number {
+    return a + b;
+  }
+
+  subtract(a: number, b: number): number {
+    return a - b;
+  }
+}
+```
+
+To test this service, configure a `TestBed`, which is Angular's testing utility for creating an isolated testing environment for each test. It sets up dependency injection and lets you retrieve service instances — simulating how Angular wires things together in a real application.
+
+```ts { header: 'calculator.spec.ts' }
+import {TestBed} from '@angular/core/testing';
+import {beforeEach, describe, expect, it} from 'vitest';
+import {Calculator} from './calculator';
+
+describe('Calculator', () => {
+  let service: Calculator;
+
+  beforeEach(() => {
+    // Injects the Calculator service which is available to Angular
+    // because the service uses `@Service`
+    service = TestBed.inject(Calculator);
+  });
+
+  it('adds two numbers', () => {
+    expect(service.add(1, 2)).toBe(3);
+  });
+
+  it('subtracts two numbers', () => {
+    expect(service.subtract(5, 3)).toBe(2);
+  });
+});
+```
+
+In the example above, the `beforeEach` block injects a fresh instance of the service before every test. This ensures each test runs in isolation with no leaked state from previous tests.
+
+## Testing services with dependencies
+
+Most services depend on other services to run properly. By default, `TestBed` provides the real implementations of these dependencies, which means your tests exercise the actual code paths your application uses. Sometimes, however, a dependency may be complex, slow, or unpredictable. In those cases, you can substitute it with a controlled replacement.
+
+Consider an `OrderTotal` service that relies on a `TaxCalculator` to compute the final price of an order:
+
+```ts { header: 'tax-calculator.ts' }
+import {Service} from '@angular/core';
+
+@Service()
+export class TaxCalculator {
+  calculate(subtotal: number): number {
+    return subtotal * 0.05;
+  }
+}
+```
+
+```ts { header: 'order-total.ts' }
+import {inject, Service} from '@angular/core';
+import {TaxCalculator} from './tax-calculator';
+
+@Service()
+export class OrderTotal {
+  private taxCalculator = inject(TaxCalculator);
+
+  total(subtotal: number): number {
+    return subtotal + this.taxCalculator.calculate(subtotal);
+  }
+}
+```
+
+In this example, `OrderTotal` uses `inject()` to request `TaxCalculator` from Angular's dependency injection system. By default, `TestBed` provides the real `TaxCalculator` which is perfect for simple calculations like this. However, if `TaxCalculator` involved complex logic, network requests, or unpredictable results, you might want to substitute it with a controlled replacement.
+
+### Replacing a dependency with a stub
+
+A stub is a way to replace a dependency or method with one that returns predictable values, which can make test results easier to verify.
+
+To test `OrderTotal` without relying on the real `TaxCalculator`, you can provide a stub in the `TestBed` configuration.
+
+```ts { header: 'order-total.spec.ts' }
+import {TestBed} from '@angular/core/testing';
+import {beforeEach, describe, expect, it, vi, type Mocked} from 'vitest';
+import {OrderTotal} from './order-total';
+import {TaxCalculator} from './tax-calculator';
+
+// Vitest's `Mocked` utility type ensures the stub is type-safe,
+// while `vi.fn()` creates a mock function for each method
+const taxCalculatorStub: Mocked<TaxCalculator> = {
+  calculate: vi.fn(),
+};
+
+describe('OrderTotal', () => {
+  let service: OrderTotal;
+
+  beforeEach(() => {
+    // `mockReturnValue` sets a controlled return value for the stub
+    taxCalculatorStub.calculate.mockReturnValue(5);
+
+    TestBed.configureTestingModule({
+      // The `providers` array accepts a provider object where `provide`
+      // specifies the dependency to replace and `useValue` defines the stub
+      providers: [{provide: TaxCalculator, useValue: taxCalculatorStub}],
+    });
+    service = TestBed.inject(OrderTotal);
+  });
+
+  it('adds tax to the subtotal', () => {
+    expect(service.total(100)).toBe(105);
+  });
+});
+```
+
+With this stub, whenever `OrderTotal` requests `TaxCalculator`, the `TestBed` knows to use the `taxCalculatorStub` instead. Because the stub always returns 5, the test verifies that `OrderTotal` correctly adds the tax value to the subtotal regardless of whether the tax rate changes in `TaxCalculator`.
+
+### Verifying interactions with spies
+
+A stub controls what a dependency returns, but sometimes you also need to verify that a service called its dependency with the correct arguments. This can be accomplished with spies, which track how a function is called. With Vitest, this functionality is built into `vi.fn()` and lets you assert on interactions between services.
+
+```ts { header: 'order-total.spec.ts' }
+import {TestBed} from '@angular/core/testing';
+import {afterEach, beforeEach, describe, expect, it, vi, type Mocked} from 'vitest';
+import {OrderTotal} from './order-total';
+import {TaxCalculator} from './tax-calculator';
+
+const taxCalculatorStub: Mocked<TaxCalculator> = {
+  calculate: vi.fn(),
+};
+
+describe('OrderTotal', () => {
+  let service: OrderTotal;
+
+  beforeEach(() => {
+    taxCalculatorStub.calculate.mockReturnValue(5);
+
+    TestBed.configureTestingModule({
+      providers: [{provide: TaxCalculator, useValue: taxCalculatorStub}],
+    });
+    service = TestBed.inject(OrderTotal);
+  });
+
+  afterEach(() => {
+    taxCalculatorStub.calculate.mockClear();
+  });
+
+  it('adds tax to the subtotal', () => {
+    expect(service.total(100)).toBe(105);
+  });
+
+  // Verify the interaction with a spy
+  it('calls the tax calculator', () => {
+    service.total(100);
+    expect(taxCalculatorStub.calculate).toHaveBeenCalledExactlyOnceWith(100);
+  });
+});
+```
+
+The new test verifies that `OrderTotal` called `TaxCalculator.calculate` when computing the total. This is useful when verifying that the interaction between services happened correctly.
+
+## Testing HTTP services
+
+Many services use Angular's `HttpClient` to fetch data from a server. Angular provides dedicated testing utilities for `HttpClient` that let you control HTTP responses without making real network requests.
+
+For details on testing services that use `HttpClient`, see the [HTTP testing guide](guide/http/testing).
+
+---
+
+### PAGE: Basics of component testing
+
+# Basics of testing components
+
+A component, unlike all other parts of an Angular application, combines an HTML template and a TypeScript class.
+The component truly is the template and the class _working together_.
+To adequately test a component, you should test that they work together as intended.
+
+Such tests require creating the component's host element in the browser DOM, as Angular does, and investigating the component class's interaction with the DOM as described by its template.
+
+The Angular `TestBed` facilitates this kind of testing as you'll see in the following sections.
+But in many cases, _testing the component class alone_, without DOM involvement, can validate much of the component's behavior in a straightforward, more obvious way.
+
+## Component DOM testing
+
+A component is more than just its class.
+A component interacts with the DOM and with other components.
+Classes alone cannot tell you if the component is going to render properly, respond to user input and gestures, or integrate with its parent and child components.
+
+- Is `Lightswitch.clicked()` bound to anything such that the user can invoke it?
+- Is the `Lightswitch.message` display

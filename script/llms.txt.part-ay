@@ -1,0 +1,651 @@
+. In these situations use the `parallel` function to parallelize the operations. The parallel function works similarly to `Promise.all`, while also optimizing change detection checks.
+
+```ts
+it('reads properties in parallel', async () => {
+  const checkboxHarness = await loader.getHarness(MyCheckboxHarness);
+  // Read the checked and intermediate properties simultaneously.
+  const [checked, indeterminate] = await parallel(() => [
+    checkboxHarness.isChecked(),
+    checkboxHarness.isIndeterminate(),
+  ]);
+  expect(checked).toBe(false);
+  expect(indeterminate).toBe(true);
+});
+```
+
+---
+
+### PAGE: Creating a component harness for your components
+
+# Creating harnesses for your components
+
+## Before you start
+
+TIP: This guide assumes you've already read the [component harnesses overview guide](guide/testing/component-harnesses-overview). Read that first if you're new to using component harnesses.
+
+### When does creating a test harness make sense?
+
+The Angular team recommends creating component test harnesses for shared components that are used in many places and have some user interactivity. This most commonly applies to widget libraries and similar reusable components. Harnesses are valuable for these cases because they provide the consumers of these shared components a well- supported API for interacting with a component. Tests that use harnesses can avoid depending on unreliable implementation details of these shared components, such as DOM structure and specific event listeners.
+
+For components that appear in only one place, such as a page in an application, harnesses don't provide as much benefit. In these situations, a component's tests can reasonably depend on the implementation details of this component, as the tests and components are updated at the same time. However, harnesses still provide some value if you would use the harness in both unit and end-to-end tests.
+
+### CDK Installation
+
+The [Component Dev Kit (CDK)](https://material.angular.dev/cdk/categories) is a set of behavior primitives for building components. To use the component harnesses, first install `@angular/cdk` from npm. You can do this from your terminal using the Angular CLI:
+
+```shell
+ng add @angular/cdk
+```
+
+## Extending `ComponentHarness`
+
+The abstract `ComponentHarness` class is the base class for all component harnesses. To create a custom component harness, extend `ComponentHarness` and implement the static property `hostSelector`.
+
+The `hostSelector` property identifies elements in the DOM that match this harness subclass. In most cases, the `hostSelector` should be the same as the selector of the corresponding `Component` or `Directive`. For example, consider a simple popup component:
+
+```ts
+@Component({
+  selector: 'my-popup',
+  template: `
+    <button (click)="toggle()">{{ triggerText() }}</button>
+    @if (isOpen()) {
+      <div class="my-popup-content"><ng-content /></div>
+    }
+  `,
+})
+class MyPopup {
+  triggerText = input('');
+
+  isOpen = signal(false);
+
+  toggle() {
+    this.isOpen.update((value) => !value);
+  }
+}
+```
+
+In this case, a minimal harness for the component would look like the following:
+
+```ts
+class MyPopupHarness extends ComponentHarness {
+  static hostSelector = 'my-popup';
+}
+```
+
+While `ComponentHarness` subclasses require only the `hostSelector` property, most harnesses should also implement a static `with` method to generate `HarnessPredicate` instances. The [filtering harnesses section](guide/testing/using-component-harnesses#filtering-harnesses) covers this in more detail.
+
+## Finding elements in the component's DOM
+
+Each instance of a `ComponentHarness` subclass represents a particular instance of the corresponding component. You can access the component's host element via the `host() `method from the `ComponentHarness` base class.
+
+`ComponentHarness` also offers several methods for locating elements within the component's DOM. These methods are `locatorFor()`, `locatorForOptional()`, and `locatorForAll()`. These methods create functions that find elements, they do not directly find elements. This approach safeguards against caching references to out-of-date elements. For example, when an `@if` block hides and then shows an element, the result is a new DOM element; using functions ensures that tests always reference the current state of the DOM.
+
+See the [ComponentHarness API reference page](/api/cdk/testing/ComponentHarness) for the full list details of the different `locatorFor` methods.
+
+For example, the `MyPopupHarness` example discussed above could provide methods to get the trigger and content elements as follows:
+
+```ts
+class MyPopupHarness extends ComponentHarness {
+  static hostSelector = 'my-popup';
+
+  // Gets the trigger element
+  getTriggerElement = this.locatorFor('button');
+
+  // Gets the content element.
+  getContentElement = this.locatorForOptional('.my-popup-content');
+}
+```
+
+## Working with `TestElement` instances
+
+`TestElement` is an abstraction designed to work across different test environments (Unit tests, WebDriver, etc). When using harnesses, you should perform all DOM interaction via this interface. Other means of accessing DOM elements, such as `document.querySelector()`, do not work in all test environments.
+
+`TestElement` has a number of methods to interact with the underlying DOM, such as `blur()`, `click()`, `getAttribute()`, and more. See the [TestElement API reference page](/api/cdk/testing/TestElement) for the full list of methods.
+
+Do not expose `TestElement` instances to harness users unless it's an element the component consumer defines directly, such as the component's host element. Exposing `TestElement` instances for internal elements leads users to depend on a component's internal DOM structure.
+
+Instead, provide more narrow-focused methods for specific actions the end-user may take or particular state they may observe. For example, `MyPopupHarness` from previous sections could provide methods like `toggle` and `isOpen`:
+
+```ts
+class MyPopupHarness extends ComponentHarness {
+  static hostSelector = 'my-popup';
+
+  protected getTriggerElement = this.locatorFor('button');
+  protected getContentElement = this.locatorForOptional('.my-popup-content');
+
+  /** Toggles the open state of the popup. */
+  async toggle() {
+    const trigger = await this.getTriggerElement();
+    return trigger.click();
+  }
+
+  /** Checks if the popup us open. */
+  async isOpen() {
+    const content = await this.getContentElement();
+    return !!content;
+  }
+}
+```
+
+## Loading harnesses for subcomponents
+
+Larger components often compose sub-components. You can reflect this structure in a component's harness as well. Each of the `locatorFor` methods on `ComponentHarness` has an alternate signature that can be used for locating sub-harnesses rather than elements.
+
+See the [ComponentHarness API reference page](/api/cdk/testing/ComponentHarness) for the full list of the different locatorFor methods.
+
+For example, consider a menu build using the popup from above:
+
+```ts
+@Directive({
+  selector: 'my-menu-item',
+})
+class MyMenuItem {}
+
+@Component({
+  selector: 'my-menu',
+  template: `
+    <my-popup>
+      <ng-content />
+    </my-popup>
+  `,
+})
+class MyMenu {
+  triggerText = input('');
+
+  items = contentChildren(MyMenuItem);
+}
+```
+
+The harness for `MyMenu` can then take advantage of other harnesses for `MyPopup` and `MyMenuItem`:
+
+```ts
+class MyMenuHarness extends ComponentHarness {
+  static hostSelector = 'my-menu';
+
+  protected getPopupHarness = this.locatorFor(MyPopupHarness);
+
+  /** Gets the currently shown menu items (empty list if menu is closed). */
+  getItems = this.locatorForAll(MyMenuItemHarness);
+
+  /** Toggles open state of the menu. */
+  async toggle() {
+    const popupHarness = await this.getPopupHarness();
+    return popupHarness.toggle();
+  }
+}
+
+class MyMenuItemHarness extends ComponentHarness {
+  static hostSelector = 'my-menu-item';
+}
+```
+
+## Filtering harness instances with `HarnessPredicate`
+
+When a page contains multiple instances of a particular component, you may want to filter based on some property of the component to get a particular component instance. For example, you may want a button with some specific text, or a menu with a specific ID. The `HarnessPredicate` class can capture criteria like this for a `ComponentHarness` subclass. While the test author is able to construct `HarnessPredicate` instances manually, it's easier when the `ComponentHarness` subclass provides a helper method to construct predicates for common filters.
+
+You should create a static `with()` method on each `ComponentHarness` subclass that returns a `HarnessPredicate` for that class. This allows test authors to write easily understandable code, e.g. `loader.getHarness(MyMenuHarness.with({selector: '#menu1'}))`. In addition to the standard selector and ancestor options, the `with` method should add any other options that make sense for the particular subclass.
+
+Harnesses that need to add additional options should extend the `BaseHarnessFilters` interface and additional optional properties as needed. `HarnessPredicate` provides several convenience methods for adding options: `stringMatches()`, `addOption()`, and `add()`. See the [HarnessPredicate API page](/api/cdk/testing/HarnessPredicate) for the full description.
+
+For example, when working with a menu it is useful to filter based on trigger text and to filter menu items based on their text:
+
+```ts
+interface MyMenuHarnessFilters extends BaseHarnessFilters {
+  /** Filters based on the trigger text for the menu. */
+  triggerText?: string | RegExp;
+}
+
+interface MyMenuItemHarnessFilters extends BaseHarnessFilters {
+  /** Filters based on the text of the menu item. */
+  text?: string | RegExp;
+}
+
+class MyMenuHarness extends ComponentHarness {
+  static hostSelector = 'my-menu';
+
+  /** Creates a `HarnessPredicate` used to locate a particular `MyMenuHarness`. */
+  static with(options: MyMenuHarnessFilters): HarnessPredicate<MyMenuHarness> {
+    return new HarnessPredicate(MyMenuHarness, options).addOption(
+      'trigger text',
+      options.triggerText,
+      (harness, text) => HarnessPredicate.stringMatches(harness.getTriggerText(), text),
+    );
+  }
+
+  protected getPopupHarness = this.locatorFor(MyPopupHarness);
+
+  /** Gets the text of the menu trigger. */
+  async getTriggerText(): Promise<string> {
+    const popupHarness = await this.getPopupHarness();
+    return popupHarness.getTriggerText();
+  }
+}
+
+class MyMenuItemHarness extends ComponentHarness {
+  static hostSelector = 'my-menu-item';
+
+  /** Creates a `HarnessPredicate` used to locate a particular `MyMenuItemHarness`. */
+  static with(options: MyMenuItemHarnessFilters): HarnessPredicate<MyMenuItemHarness> {
+    return new HarnessPredicate(MyMenuItemHarness, options).addOption(
+      'text',
+      options.text,
+      (harness, text) => HarnessPredicate.stringMatches(harness.getText(), text),
+    );
+  }
+
+  /** Gets the text of the menu item. */
+  async getText(): Promise<string> {
+    const host = await this.host();
+    return host.text();
+  }
+}
+```
+
+You can pass a `HarnessPredicate` instead of a `ComponentHarness` class to any of the APIs on `HarnessLoader`, `LocatorFactory`, or `ComponentHarness`. This allows test authors to easily target a particular component instance when creating a harness instance. It also allows the harness author to leverage the same `HarnessPredicate` to enable more powerful APIs on their harness class. For example, consider the `getItems` method on the `MyMenuHarness` shown above. Adding a filtering API allows users of the harness to search for particular menu items:
+
+```ts
+class MyMenuHarness extends ComponentHarness {
+  static hostSelector = 'my-menu';
+
+  /** Gets a list of items in the menu, optionally filtered based on the given criteria. */
+  async getItems(filters: MyMenuItemHarnessFilters = {}): Promise<MyMenuItemHarness[]> {
+    const getFilteredItems = this.locatorForAll(MyMenuItemHarness.with(filters));
+    return getFilteredItems();
+  }
+  ...
+}
+```
+
+## Creating `HarnessLoader` for elements that use content projection
+
+Some components project additional content into the component's template. See the [content projection guide](guide/components/content-projection) for more information.
+
+Add a `HarnessLoader` instance scoped to the element containing the `<ng-content>` when you create a harness for a component that uses content projection. This allows the user of the harness to load additional harnesses for whatever components were passed in as content. `ComponentHarness` has several methods that can be used to create HarnessLoader instances for cases like this: `harnessLoaderFor()`, `harnessLoaderForOptional()`, `harnessLoaderForAll()`. See the [HarnessLoader interface API reference page](/api/cdk/testing/HarnessLoader) for more details.
+
+For example, the `MyPopupHarness` example from above can extend `ContentContainerComponentHarness` to add support to load harnesses within the `<ng-content>` of the component.
+
+```ts
+class MyPopupHarness extends ContentContainerComponentHarness<string> {
+  static hostSelector = 'my-popup';
+}
+```
+
+## Accessing elements outside of the component's host element
+
+There are times when a component harness might need to access elements outside of its corresponding component's host element. For example, code that displays a floating element or pop-up often attaches DOM elements directly to the document body, such as the `Overlay` service in Angular CDK.
+
+In this case, `ComponentHarness` provides a method that can be used to get a `LocatorFactory` for the root element of the document. The `LocatorFactory` supports most of the same APIs as the `ComponentHarness` base class, and can then be used to query relative to the document's root element.
+
+Consider if the `MyPopup` component above used the CDK overlay for the popup content, rather than an element in its own template. In this case, `MyPopupHarness` would have to access the content element via `documentRootLocatorFactory()` method that gets a locator factory rooted at the document root.
+
+```ts
+class MyPopupHarness extends ComponentHarness {
+  static hostSelector = 'my-popup';
+
+  /** Gets a `HarnessLoader` whose root element is the popup's content element. */
+  async getHarnessLoaderForContent(): Promise<HarnessLoader> {
+    const rootLocator = this.documentRootLocatorFactory();
+    return rootLocator.harnessLoaderFor('my-popup-content');
+  }
+}
+```
+
+## Waiting for asynchronous tasks
+
+The methods on `TestElement` automatically trigger Angular's change detection and wait for tasks inside the `NgZone`. In most cases no special effort is required for harness authors to wait on asynchronous tasks. However, there are some edge cases where this may not be sufficient.
+
+Under some circumstances, Angular animations may require a second cycle of change detection and subsequent `NgZone` stabilization before animation events are fully flushed. In cases where this is needed, the `ComponentHarness` offers a `forceStabilize()` method that can be called to do the second round.
+
+You can use `NgZone.runOutsideAngular()` to schedule tasks outside of NgZone. Call the `waitForTasksOutsideAngular()` method on the corresponding harness if you need to explicitly wait for tasks outside `NgZone` since this does not happen automatically.
+
+---
+
+## CAT: animations
+
+### PAGE: Animations your content
+
+# Animating your Application with CSS
+
+CSS offers a robust set of tools for you to create beautiful and engaging animations within your application.
+
+## How to write animations in native CSS
+
+If you've never written any native CSS animations, there are a number of excellent guides to get you started. Here are a few of them:
+[MDN's CSS Animations guide](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_animations/Using_CSS_animations)
+[W3Schools CSS3 Animations guide](https://www.w3schools.com/css/css3_animations.asp)
+[The Complete CSS Animations Tutorial](https://www.lambdatest.com/blog/css-animations-tutorial/)
+[CSS Animation for Beginners](https://thoughtbot.com/blog/css-animation-for-beginners)
+
+and a couple of videos:
+[Learn CSS Animation in 9 Minutes](https://www.youtube.com/watch?v=z2LQYsZhsFw)
+[Net Ninja CSS Animation Tutorial Playlist](https://www.youtube.com/watch?v=jgw82b5Y2MU&list=PL4cUxeGkcC9iGYgmEd2dm3zAKzyCGDtM5)
+
+Check out some of these guides and tutorials, then come back to this guide.
+
+## Creating Reusable Animations
+
+You can create reusable animations that can be shared across your application using `@keyframes`. Define keyframe animations in a shared CSS file, and you'll be able to re-use those keyframe animations wherever you want within your application.
+
+<docs-code header="animations.css" path="adev/src/content/examples/animations/src/app/animations.css" region="animation-shared"/>
+
+Adding the class `animated-class` to an element would trigger the animation on that element.
+
+## Animating a Transition
+
+### Animating State and Styles
+
+You may want to animate between two different states, for example when an element is opened or closed. You can accomplish this by using CSS classes, either with a keyframe animation or transition styling.
+
+<docs-code header="animations.css" path="adev/src/content/examples/animations/src/app/animations.css" region="animation-states"/>
+
+Triggering the `open` or `closed` state is done by toggling classes on the element in your component. You can find examples of how to do this in our [template guide](guide/templates/binding#css-class-and-style-property-bindings).
+
+You can see similar examples in the template guide for [animating styles directly](guide/templates/binding#css-style-properties).
+
+### Transitions, Timing, and Easing
+
+Animating often requires adjusting timing, delays, and easing behaviors. This can be done using several css properties or shorthand properties.
+
+Specify `animation-duration`, `animation-delay`, and `animation-timing-function` for a keyframe animation in CSS, or alternatively use the `animation` shorthand property.
+
+<docs-code header="animations.css" path="adev/src/content/examples/animations/src/app/animations.css" region="animation-timing"/>
+
+Similarly, you can use `transition-duration`, `transition-delay`, and `transition-timing-function` and the `transition` shorthand for animations that are not using `@keyframes`.
+
+<docs-code header="animations.css" path="adev/src/content/examples/animations/src/app/animations.css" region="transition-timing"/>
+
+### Triggering an Animation
+
+Animations can be triggered by toggling CSS styles or classes. Once a class is present on an element, the animation will occur. Removing the class will revert the element back to whatever CSS is defined for that element. Here's an example:
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/open-close.ts">
+    <docs-code header="open-close.ts" path="adev/src/content/examples/animations/src/app/native-css/open-close.ts" />
+    <docs-code header="open-close.html" path="adev/src/content/examples/animations/src/app/native-css/open-close.html" />
+    <docs-code header="open-close.css" path="adev/src/content/examples/animations/src/app/native-css/open-close.css"/>
+</docs-code-multifile>
+
+## Transition and Triggers
+
+### Animating Auto Height
+
+You can use CSS Grid to animate to auto height.
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/auto-height.ts">
+    <docs-code header="auto-height.ts" path="adev/src/content/examples/animations/src/app/native-css/auto-height.ts" />
+    <docs-code header="auto-height.html" path="adev/src/content/examples/animations/src/app/native-css/auto-height.html" />
+    <docs-code header="auto-height.css" path="adev/src/content/examples/animations/src/app/native-css/auto-height.css"  />
+</docs-code-multifile>
+
+If you don't have to worry about supporting all browsers, you can also check out `calc-size()`, which is the true solution to animating auto height. See [MDN's docs](https://developer.mozilla.org/en-US/docs/Web/CSS/calc-size) and [this tutorial](https://frontendmasters.com/blog/one-of-the-boss-battles-of-css-is-almost-won-transitioning-to-auto/) for more information.
+
+### Animate entering and leaving a view
+
+You can create animations for when an item enters a view or leaves a view. Let's start by looking at how to animate an element entering a view. We'll do this with `animate.enter`, which will apply animation classes when an element enters the view.
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/insert.ts">
+    <docs-code header="insert.ts" path="adev/src/content/examples/animations/src/app/native-css/insert.ts" />
+    <docs-code header="insert.html" path="adev/src/content/examples/animations/src/app/native-css/insert.html" />
+    <docs-code header="insert.css" path="adev/src/content/examples/animations/src/app/native-css/insert.css"  />
+</docs-code-multifile>
+
+Animating an element when it leaves the view is similar to animating when entering a view. Use `animate.leave` to specify which CSS classes to apply when the element leaves the view.
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/remove.ts">
+    <docs-code header="remove.ts" path="adev/src/content/examples/animations/src/app/native-css/remove.ts" />
+    <docs-code header="remove.html" path="adev/src/content/examples/animations/src/app/native-css/remove.html" />
+    <docs-code header="remove.css" path="adev/src/content/examples/animations/src/app/native-css/remove.css"  />
+</docs-code-multifile>
+
+NOTE: Child `animate.leave` animations fire only within the same component template. Nested component `animate.leave` animations will not fire when a parent element is removed.
+
+For more information on `animate.enter` and `animate.leave`, see the [Enter and Leave animations guide](guide/animations).
+
+### Animating increment and decrement
+
+Animating on increment and decrement is a common pattern in applications. Here's an example of how you can accomplish that behavior.
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/increment-decrement.ts">
+    <docs-code header="increment-decrement.ts" path="adev/src/content/examples/animations/src/app/native-css/increment-decrement.ts" />
+    <docs-code header="increment-decrement.html" path="adev/src/content/examples/animations/src/app/native-css/increment-decrement.html" />
+    <docs-code header="increment-decrement.css" path="adev/src/content/examples/animations/src/app/native-css/increment-decrement.css" />
+</docs-code-multifile>
+
+### Disabling an animation or all animations
+
+If you'd like to disable the animations that you've specified, you have multiple options.
+
+1. Create a custom class that forces animation and transition to `none`.
+
+```css
+.no-animation {
+  animation: none !important;
+  transition: none !important;
+}
+```
+
+Applying this class to an element prevents any animation from firing on that element. You could alternatively scope this to your entire DOM or section of your DOM to enforce this behavior. However, this prevents animation events from firing. If you are awaiting animation events for element removal, this solution won't work. A workaround is to set durations to 1 millisecond instead.
+
+2. Use the [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion) media query to ensure no animations play for users that prefer less animation.
+
+3. Prevent adding animation classes programmatically
+
+### Animation Callbacks
+
+If you have actions you would like to execute at certain points during animations, there are a number of available events you can listen to. Here's a few of them.
+
+[`OnAnimationStart`](https://developer.mozilla.org/en-US/docs/Web/API/Element/animationstart_event)  
+[`OnAnimationEnd`](https://developer.mozilla.org/en-US/docs/Web/API/Element/animationend_event)  
+[`OnAnimationIteration`](https://developer.mozilla.org/en-US/docs/Web/API/Element/animationiteration_event)  
+[`OnAnimationCancel`](https://developer.mozilla.org/en-US/docs/Web/API/Element/animationcancel_event)
+
+[`OnTransitionStart`](https://developer.mozilla.org/en-US/docs/Web/API/Element/transitionstart_event)  
+[`OnTransitionRun`](https://developer.mozilla.org/en-US/docs/Web/API/Element/transitionrun_event)  
+[`OnTransitionEnd`](https://developer.mozilla.org/en-US/docs/Web/API/Element/transitionend_event)  
+[`OnTransitionCancel`](https://developer.mozilla.org/en-US/docs/Web/API/Element/transitioncancel_event)
+
+The Web Animations API has a lot of additional functionality. [Take a look at the documentation](https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API) to see all the available animation APIs.
+
+NOTE: Be aware of bubbling issues with these callbacks. If you are animating children and parents, the events bubble up from children to parents. Consider stopping propagation or looking at more details within the event to determine if you're responding to the desired event target rather than an event bubbling up from a child node. You can examine the `animationname` property or the properties being transitioned to verify you have the right nodes.
+
+## Complex Sequences
+
+Animations are often more complicated than just a simple fade in or fade out. You may have lots of complicated sequences of animations you may want to run. Let's take a look at some of those possible scenarios.
+
+### Staggering animations in a list
+
+One common effect is to stagger the animations of each item in a list to create a cascade effect. This can be accomplished by utilizing `animation-delay` or `transition-delay`. Here is an example of what that CSS might look like.
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/stagger.ts">
+    <docs-code header="stagger.ts" path="adev/src/content/examples/animations/src/app/native-css/stagger.ts" />
+    <docs-code header="stagger.html" path="adev/src/content/examples/animations/src/app/native-css/stagger.html" />
+    <docs-code header="stagger.css" path="adev/src/content/examples/animations/src/app/native-css/stagger.css" />
+</docs-code-multifile>
+
+### Parallel Animations
+
+You can apply multiple animations to an element at once using the `animation` shorthand property. Each can have their own durations and delays. This allows you to compose animations together and create complicated effects.
+
+```css
+.target-element {
+  animation:
+    rotate 3s,
+    fade-in 2s;
+}
+```
+
+In this example, the `rotate` and `fade-in` animations fire at the same time, but have different durations.
+
+### Animating the items of a reordering list
+
+Items in a `@for` loop will be removed and re-added, which will fire off animations using `@starting-styles` for entry animations. Alternatively, you can use `animate.enter` for this same behavior. Use `animate.leave` to animate elements as they are removed, as seen in the example below.
+
+<docs-code-multifile preview path="adev/src/content/examples/animations/src/app/native-css/reorder.ts">
+    <docs-code header="reorder.ts" path="adev/src/content/examples/animations/src/app/native-css/reorder.ts" />
+    <docs-code header="reorder.html" path="adev/src/content/examples/animations/src/app/native-css/reorder.html" />
+    <docs-code header="reorder.css" path="adev/src/content/examples/animations/src/app/native-css/reorder.css" />
+</docs-code-multifile>
+
+## Programmatic control of animations
+
+You can retrieve animations off an element directly using [`Element.getAnimations()`](https://developer.mozilla.org/en-US/docs/Web/API/Element/getAnimations). This returns an array of every [`Animation`](https://developer.mozilla.org/en-US/docs/Web/API/Animation) on that element. You can use the `Animation` API to do much more than you could with what the `AnimationPlayer` from the animations package offered. From here you can `cancel()`, `play()`, `pause()`, `reverse()` and much more. This native API should provide everything you need to control your animations.
+
+## More on Angular animations
+
+You might also be interested in the following:
+
+<docs-pill-row>
+  <docs-pill href="guide/animations" title="Enter and Leave animations"/>
+  <docs-pill href="guide/routing/route-transition-animations" title="Route transition animations"/>
+</docs-pill-row>
+
+---
+
+### PAGE: Route transition animation
+
+# Route transition animations
+
+Route transition animations enhance user experience by providing smooth visual transitions when navigating between different views in your Angular application. [Angular Router](/guide/routing) includes built-in support for the browser's View Transitions API, enabling seamless animations between route changes in supported browsers.
+
+## How View Transitions work
+
+View transitions use the browser's native [`document.startViewTransition` API](https://developer.mozilla.org/en-US/docs/Web/API/Document/startViewTransition) to create smooth animations between different states of your application. The API works by:
+
+1. **Capturing the current state** - The browser takes a screenshot of the current page
+2. **Executing the DOM update** - Your callback function runs to update the DOM
+3. **Capturing the new state** - The browser captures the updated page state
+4. **Playing the transition** - The browser animates between the old and new states
+
+Here's the basic structure of the `startViewTransition` API:
+
+```ts
+document.startViewTransition(async () => {
+  await updateTheDOMSomehow();
+});
+```
+
+For more details about the browser API, see the [Chrome Explainer](https://developer.chrome.com/docs/web-platform/view-transitions).
+
+## How the Router uses view transitions
+
+Angular Router integrates view transitions into the navigation lifecycle to create seamless route changes. During navigation, the Router:
+
+1. **Completes navigation preparation** - Route matching, [lazy loading](guide/routing/loading-strategies#lazily-loaded-components-and-routes), [guards](/guide/routing/route-guards), [resources](/guide/routing/data-fetching-with-resources), and [resolvers](/guide/routing/data-resolvers) execute
+2. **Initiates the view transition** - Router calls `startViewTransition` when routes are ready for activation
+3. **Updates the DOM** - Router activates new routes and deactivates old ones within the transition callback
+4. **Finalizes the transition** - The transition Promise resolves when Angular completes rendering
+
+The Router's view transition integration acts as a [progressive enhancement](https://developer.mozilla.org/en-US/docs/Glossary/Progressive_Enhancement). When browsers don't support the View Transitions API, the Router performs normal DOM updates without animation, ensuring your application works across all browsers.
+
+## Enabling View Transitions in the Router
+
+Enable view transitions by adding the `withViewTransitions` feature to your [router configuration](/guide/routing/define-routes#adding-the-router-to-your-application). Angular supports both standalone and NgModule bootstrap approaches:
+
+### Standalone bootstrap
+
+```ts
+import {bootstrapApplication} from '@angular/platform-browser';
+import {provideRouter, withViewTransitions} from '@angular/router';
+import {routes} from './app.routes';
+
+bootstrapApplication(MyApp, {
+  providers: [provideRouter(routes, withViewTransitions())],
+});
+```
+
+### NgModule bootstrap
+
+```ts
+import {NgModule} from '@angular/core';
+import {RouterModule} from '@angular/router';
+
+@NgModule({
+  imports: [RouterModule.forRoot(routes, {enableViewTransitions: true})],
+})
+export class AppRouting {}
+```
+
+[Try the "count" example on StackBlitz](https://stackblitz.com/edit/stackblitz-starters-2dnvtm?file=src%2Fmain.ts)
+
+This example demonstrates how router navigation can replace direct `startViewTransition` calls for counter updates.
+
+## Customizing transitions with CSS
+
+You can customize view transitions using CSS to create unique animation effects. The browser creates separate transition elements that you can target with CSS selectors.
+
+To create custom transitions:
+
+1. **Add view-transition-name** - Assign unique names to elements you want to animate
+2. **Define global animations** - Create CSS animations in your global styles
+3. **Target transition pseudo-elements** - Use `::view-transition-old()` and `::view-transition-new()` selectors
+
+Here's an example that adds a rotation effect to a counter element:
+
+```css
+/* Define keyframe animations */
+@keyframes rotate-out {
+  to {
+    transform: rotate(90deg);
+  }
+}
+
+@keyframes rotate-in {
+  from {
+    transform: rotate(-90deg);
+  }
+}
+
+/* Target view transition pseudo-elements */
+::view-transition-old(count),
+::view-transition-new(count) {
+  animation-duration: 200ms;
+  animation-name: -ua-view-transition-fade-in, rotate-in;
+}
+
+::view-transition-old(count) {
+  animation-name: -ua-view-transition-fade-out, rotate-out;
+}
+```
+
+IMPORTANT: Define view transition animations in your global styles file, not in component styles. Angular's [view encapsulation](/guide/components/styling#style-scoping) scopes component styles, which prevents them from targeting the transition pseudo-elements correctly.
+
+[Try the updated “count” example on StackBlitz](https://stackblitz.com/edit/stackblitz-starters-fwn4i7?file=src%2Fmain.ts)
+
+## Advanced transition control with onViewTransitionCreated
+
+The `withViewTransitions` feature accepts an options object with an `onViewTransitionCreated` callback for advanced control over view transitions. This callback:
+
+- Runs in an [injection context](/guide/di/dependency-injection-context#run-within-an-injection-context)
+- Receives a [`ViewTransitionInfo`](/api/router/ViewTransitionInfo) object containing:
+  - The `ViewTransition` instance from `startViewTransition`
+  - The [`ActivatedRouteSnapshot`](/api/router/ActivatedRouteSnapshot) for the route being navigated from
+  - The [`ActivatedRouteSnapshot`](/api/router/ActivatedRouteSnapshot) for the route being navigated to
+
+Use this callback to customize transition behavior based on navigation context. For example, you can skip transitions for specific navigation types:
+
+```ts
+import {inject} from '@angular/core';
+import {Router, withViewTransitions, isActive, IsActiveMatchOptions} from '@angular/router';
+
+withViewTransitions({
+  onViewTransitionCreated: ({transition}) => {
+    const router = inject(Router);
+    const targetUrl = router.currentNavigation()!.finalUrl!;
+
+    // Skip transition if only fragment or query params change
+    const config: Partial<IsActiveMatchOptions> = {
+      paths: 'exact',
+      matrixParams: 'exact',
+      fragment: 'ignored',
+      queryParams: 'ignored',
+    };
+
+    const isTargetRouteCurrent = isActive(targetUrl, router, config);
+
+    if (isTargetRouteCurrent()) {
+      transition.skipTransition();
+    }
+  },
+});
+```
+
+This example skips the view transition when navigation only changes the [URL fragment or query parameters](/guide/routing/read-route-state#query-parameters) (such as anchor links within 
