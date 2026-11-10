@@ -1,0 +1,649 @@
+t in the current working directory.
+
+The command takes an optional project name, as specified in the `projects` section of the `angular.json` workspace configuration file.
+When a project name is not supplied, executes the `deploy` builder for the only project that has a `deploy` target,
+or for the project in the current working directory.
+
+To use the `ng deploy` command, use `ng add` to add a package that implements deployment capabilities to your favorite platform.
+Adding the package automatically updates your workspace configuration, adding a deployment
+[CLI builder](tools/cli/cli-builder).
+For example:
+
+```json
+"projects": {
+  "my-project": {
+    ...
+    "architect": {
+      ...
+      "deploy": {
+        "builder": "@angular/fire:deploy",
+        "options": {}
+      }
+    }
+  }
+}
+```
+
+
+#### `ng e2e`
+Command: `ng e2e [project]`
+
+Builds and serves an Angular application, then runs end-to-end tests.
+
+#### `ng extract-i18n`
+Command: `ng extract-i18n [project]`
+
+Extracts i18n messages from source code.
+
+#### `ng generate`
+Command: `ng generate <schematic>`
+
+Generates and/or modifies files based on a schematic.
+
+#### `ng lint`
+Command: `ng lint [project]`
+
+Runs linting tools on Angular application code in a given project folder.
+
+The command takes an optional project name, as specified in the `projects` section of the `angular.json` workspace configuration file.
+When a project name is not supplied, executes the `lint` builder for all projects.
+
+To use the `ng lint` command, use `ng add` to add a package that implements linting capabilities. Adding the package automatically updates your workspace configuration, adding a lint [CLI builder](tools/cli/cli-builder).
+For example:
+
+```json
+"projects": {
+  "my-project": {
+    ...
+    "architect": {
+      ...
+      "lint": {
+        "builder": "@angular-eslint/builder:lint",
+        "options": {}
+      }
+    }
+  }
+}
+```
+
+
+#### `ng new`
+Command: `ng new [name]`
+
+Creates a new Angular workspace.
+
+Creates and initializes a new Angular workspace with an initial application.
+
+Provides interactive prompts for optional configuration, such as adding routing support.
+All prompts can safely be allowed to default.
+
+- The new workspace folder is given the specified project name, and contains configuration files at the top level.
+
+- By default, the files for a new initial application (with the same name as the workspace) are placed in the `src/` subfolder.
+- The new application's configuration appears in the `projects` section of the `angular.json` workspace configuration file, under its project name.
+
+- Subsequent applications that you generate in the workspace reside in the `projects/` subfolder.
+
+If you plan to have multiple applications in the workspace, you can create an empty workspace by using the `--no-create-application` option.
+You can then use `ng generate application` to create an initial application.
+This allows a workspace name different from the initial app name, and ensures that all applications reside in the `/projects` subfolder, matching the structure of the configuration file.
+
+
+#### `ng run`
+Command: `ng run <target>`
+
+Runs an Architect target with an optional custom builder configuration defined in your project.
+
+Architect is the tool that the CLI uses to perform complex tasks such as compilation, according to provided configurations.
+The CLI commands run Architect targets such as `build`, `serve`, `test`, and `lint`.
+Each named target has a default configuration, specified by an `options` object,
+and an optional set of named alternate configurations in the `configurations` object.
+
+For example, the `serve` target for a newly generated app has a predefined
+alternate configuration named `production`.
+
+You can define new targets and their configuration options in the `architect` section
+of the `angular.json` file, which you can run from the command line using the `ng run` command.
+
+
+#### `ng serve`
+Command: `ng serve [project]`
+
+Builds and serves your application, rebuilding on file changes.
+
+#### `ng test`
+Command: `ng test [project]`
+
+Runs unit tests in a project.
+
+Takes the name of the project, as specified in the `projects` section of the `angular.json` workspace configuration file.
+When a project name is not supplied, it will execute for all projects.
+
+
+#### `ng update`
+Command: `ng update [packages..]`
+
+Updates your workspace and its dependencies. See https://update.angular.dev/.
+
+Perform a basic update to the current stable release of the core framework and CLI by running the following command.
+
+```
+ng update @angular/cli @angular/core
+```
+
+To update to the next beta or pre-release version, use the `--next` option.
+
+To update from one major version to another, use the format
+
+```
+ng update @angular/cli@^<major_version> @angular/core@^<major_version>
+```
+
+We recommend that you always update to the latest patch version, as it contains fixes we released since the initial major release.
+For example, use the following command to take the latest 21.x.x version and use that to update.
+
+```
+ng update @angular/cli@^21 @angular/core@^21
+```
+
+For detailed information and guidance on updating your application, see the interactive [Angular Update Guide](/update-guide).
+
+
+#### `ng version`
+Command: `ng version`
+
+Outputs Angular CLI version.
+
+---
+
+## CAT: others
+
+### PAGE: Zoneless
+
+# Angular without ZoneJS (Zoneless)
+
+## Why use Zoneless?
+
+The main advantages to removing ZoneJS as a dependency are:
+
+- **Improved performance**: ZoneJS uses DOM events and async tasks as indicators of when application state _might_ have updated and subsequently triggers application synchronization to run change detection on the application's views. ZoneJS does not have any insight into whether application state actually changed and so this synchronization is triggered more frequently than necessary.
+- **Improved Core Web Vitals**: ZoneJS brings a fair amount of overhead, both in payload size and startup time.
+- **Improved debugging experience**: ZoneJS makes debugging code more difficult. Stack traces are harder to understand with ZoneJS. It's also difficult to understand when code breaks as a result of being outside the Angular Zone.
+- **Better ecosystem compatibility**: ZoneJS works by patching browser APIs but does not automatically have patches for every new browser API. Some APIs, such as `async`/`await`, cannot be patched effectively and must be downleveled to work with ZoneJS. Sometimes libraries in the ecosystem are also incompatible with the way ZoneJS patches the native APIs. Removing ZoneJS as a dependency ensures better long-term compatibility by removing a source of complexity, monkey patching, and ongoing maintenance.
+
+## Enabling Zoneless in an application
+
+Zoneless is the default in Angular v21+ so you do not need to do anything to enable it. You should verify that `provideZoneChangeDetection` is not used anywhere to override the default configuration.
+
+If you are using Angular v20, enable zoneless change detection by adding `provideZonelessChangeDetection()` at bootstrap:
+
+```ts {header: 'standalone bootstrap'}
+bootstrapApplication(MyApp, {providers: [provideZonelessChangeDetection()]});
+```
+
+```ts {header: 'NgModule bootstrap'}
+platformBrowser().bootstrapModule(AppModule);
+
+@NgModule({
+  providers: [provideZonelessChangeDetection()],
+})
+export class AppModule {}
+```
+
+## Removing ZoneJS
+
+Zoneless applications should remove ZoneJS entirely from the build to reduce bundle size. ZoneJS is typically
+loaded via the `polyfills` option in `angular.json`, both in the `build` and `test` targets. Remove `zone.js`
+and `zone.js/testing` from both to remove it from the build. Projects which use an explicit `polyfills.ts` file
+should remove `import 'zone.js';` and `import 'zone.js/testing';` from the file.
+
+After removing ZoneJS from the build, there is no longer a need for a `zone.js` dependency either and the
+package can be removed entirely:
+
+```shell
+npm uninstall zone.js
+```
+
+## Requirements for Zoneless compatibility
+
+Angular relies on notifications from core APIs in order to determine when to run change detection and on which views.
+These notifications include:
+
+- `ChangeDetectorRef.markForCheck` (called automatically by `AsyncPipe`)
+- `ComponentRef.setInput`
+- Updating a signal that's read in a template
+- Bound host or template listeners callbacks
+- Attaching a view that was marked dirty by one of the above
+
+### `OnPush`-compatible components
+
+One way to ensure that a component is using the correct notification mechanisms from above is to
+use [ChangeDetectionStrategy.OnPush](/best-practices/skipping-subtrees#using-onpush).
+
+The `OnPush` change detection strategy is not required, but it is a recommended step towards zoneless compatibility for application components. It is not always possible for library components to use `ChangeDetectionStrategy.OnPush`.
+When a library component is a host for user-components which might use `ChangeDetectionStrategy.Eager`/`Default`, it cannot use `OnPush` because that would prevent the child component from being refreshed if it is not `OnPush` compatible and relies on ZoneJS to trigger change detection. Components can use the `Default` strategy as long as they notify Angular when change detection needs to run (calling `markForCheck`, using signals, `AsyncPipe`, etc.).
+Being a host for a user component means using an API such as `ViewContainerRef.createComponent` and not just hosting a portion of a template from a user component (i.e. content projection or using a template ref input).
+
+### Remove `NgZone.onMicrotaskEmpty`, `NgZone.onUnstable`, `NgZone.isStable`, or `NgZone.onStable`
+
+Applications and libraries need to remove uses of `NgZone.onMicrotaskEmpty`, `NgZone.onUnstable`, and `NgZone.onStable`.
+These observables will never emit when an Application enables zoneless change detection.
+Similarly, `NgZone.isStable` will always be `true` and should not be used as a condition for code execution.
+
+The `NgZone.onMicrotaskEmpty` and `NgZone.onStable` observables are most often used to wait for Angular to
+complete change detection before performing a task. Instead, these can be replaced by `afterNextRender`
+if they need to wait for a single change detection or `afterEveryRender` if there is some condition that might span
+several change detection rounds. In other cases, these observables were used because they happened to be
+familiar and have similar timing to what was needed. More straightforward or direct DOM APIs can be used instead,
+such as `MutationObserver` when code needs to wait for certain DOM state (rather than waiting for it indirectly
+through Angular's render hooks).
+
+<docs-callout title="NgZone.run and NgZone.runOutsideAngular are compatible with Zoneless">
+`NgZone.run` and `NgZone.runOutsideAngular` do not need to be removed in order for code to be compatible with
+Zoneless applications. In fact, removing these calls can lead to performance regressions for libraries that
+are used in applications that still rely on ZoneJS.
+</docs-callout>
+
+### `PendingTasks` for Server Side Rendering (SSR)
+
+If you are using SSR with Angular, you may know that it relies on ZoneJS to help determine when the application
+is "stable" and can be serialized. If there are asynchronous tasks that should prevent serialization, an application
+not using ZoneJS must make Angular aware of these with the [PendingTasks](/api/core/PendingTasks) service. Serialization
+will wait for the first moment that all pending tasks have been removed.
+
+The two most straightforward uses of pending tasks are the `run` method:
+
+```typescript
+const taskService = inject(PendingTasks);
+taskService.run(async () => {
+  const someResult = await doSomeWorkThatNeedsToBeRendered();
+  this.someState.set(someResult);
+});
+```
+
+For more complicated use-cases, you can manually add and remove a pending task:
+
+```typescript
+const taskService = inject(PendingTasks);
+const taskCleanup = taskService.add();
+try {
+  await doSomeWorkThatNeedsToBeRendered();
+} catch {
+  // handle error
+} finally {
+  taskCleanup();
+}
+```
+
+In addition, the [pendingUntilEvent](/api/core/rxjs-interop/pendingUntilEvent) helper in `rxjs-interop` ensures
+the application remains unstable until the observable emits, completes, errors, or is unsubscribed.
+
+```typescript
+readonly myObservableState = someObservable.pipe(pendingUntilEvent());
+```
+
+The framework uses this service internally as well to prevent serialization until asynchronous tasks are complete. These include, but are not limited to, an ongoing Router navigation and an incomplete `HttpClient` request.
+
+### Reactive forms in zoneless applications
+
+Reactive forms model updates (`setValue`, `patchValue`, `FormArray.push`, and similar APIs) update form state and emit form observables, but they do not automatically schedule component change detection.
+
+If a template depends on reactive forms state, connect forms observables to a change-detection notification (for example `ChangeDetectorRef.markForCheck()`), or reflect the data through signals consumed by the template.
+
+## Testing and Debugging
+
+### Using Zoneless in `TestBed`
+
+`TestBed` uses zoneless change detection by default, even when `zone.js` is loaded via the `polyfills`.
+
+To use Zone-based change detection in a test, add `provideZoneChangeDetection()` to the `TestBed` providers. Adding `provideZonelessChangeDetection()` is optional:
+
+```typescript
+TestBed.configureTestingModule({
+  // Optional: include the provider to force the testing environment
+  // uses the same zoneless behavior as a zoneless application.
+  providers: [provideZonelessChangeDetection()],
+});
+
+const fixture = TestBed.createComponent(MyComponent);
+await fixture.whenStable();
+```
+
+To ensure tests have the most similar behavior to production code,
+avoid using `fixture.detectChanges()` when possible. This forces
+change detection to run when Angular might otherwise have not
+scheduled change detection. Tests should ensure these notifications
+are happening and allow Angular to handle when to synchronize
+state rather than manually forcing it to happen in the test.
+
+For existing test suites, using `fixture.detectChanges()` is a common pattern
+and it is likely not worth the effort of converting these to
+`await fixture.whenStable()`. `TestBed` will still enforce that the
+fixture's component is `OnPush` compatible and throws `ExpressionChangedAfterItHasBeenCheckedError`
+if it finds that template values were updated without a
+change notification (i.e. `fixture.componentInstance.someValue = 'newValue';`).
+If the component is used in production, this issue should be addressed by updating
+the component to use signals for state or call `ChangeDetectorRef.markForCheck()`.
+If the component is only used as a test wrapper and never used in an application,
+it is acceptable to use `ChangeDetectionStrategy.Eager` for it and call `fixture.changeDetectorRef.markForCheck()`.
+
+IMPORTANT: `fixture.changeDetectorRef` belongs to the fixture's host view, so its `markForCheck()`
+doesn't refresh the template of an `OnPush` component. Your application components shouldn't need it
+in tests. If a test needs it, the component usually isn't fully reactive or
+[zoneless compatible](#requirements-for-zoneless-compatibility).
+
+### Debug-mode check to ensure updates are detected
+
+IMPORTANT: `provideCheckNoChangesConfig` is in [developer preview](reference/releases#developer-preview).
+
+Angular also provides an additional tool to help verify that an application is making
+updates to state in a zoneless-compatible way. `provideCheckNoChangesConfig({exhaustive: true, interval: <milliseconds>})`
+can be used to periodically check to ensure that no bindings have been updated
+without a notification. Angular throws `ExpressionChangedAfterItHasBeenCheckedError`
+if there is an updated binding that would not have refreshed by the zoneless change
+detection.
+
+---
+
+### PAGE: Error encyclopedia
+
+# Error Encyclopedia
+
+## Runtime errors
+
+| Code      | Name                                                                                 |
+| :-------- | :----------------------------------------------------------------------------------- |
+| `NG0100`  | [Expression Changed After Checked](errors/NG0100)                                    |
+| `NG0200`  | [Circular Dependency in DI](errors/NG0200)                                           |
+| `NG0201`  | [No Provider Found](errors/NG0201)                                                   |
+| `NG0203`  | [`inject()` must be called from an injection context](errors/NG0203)                 |
+| `NG0204`  | [Invalid Injection Token](errors/NG0204)                                             |
+| `NG0205`  | [Injector has already been destroyed](errors/NG0205)                                 |
+| `NG0207`  | [EnvironmentProviders in wrong context](errors/NG0207)                               |
+| `NG0209`  | [Invalid multi provider](errors/NG0209)                                              |
+| `NG0300`  | [Selector Collision](errors/NG0300)                                                  |
+| `NG0301`  | [Export Not Found](errors/NG0301)                                                    |
+| `NG0302`  | [Pipe Not Found](errors/NG0302)                                                      |
+| `NG0318`  | [Invalid style property binding value](errors/NG0318)                                |
+| `NG0401`  | [Missing platform](errors/NG0401)                                                    |
+| `NG0403`  | [Bootstrapped NgModule doesn't specify which component to initialize](errors/NG0403) |
+| `NG0500`  | [Hydration Node Mismatch](errors/NG0500)                                             |
+| `NG0501`  | [Hydration Missing Siblings](errors/NG0501)                                          |
+| `NG0502`  | [Hydration Missing Node](errors/NG0502)                                              |
+| `NG0503`  | [Hydration Unsupported Projection of DOM Nodes](errors/NG0503)                       |
+| `NG0504`  | [Skip hydration flag is applied to an invalid node](errors/NG0504)                   |
+| `NG0505`  | [No hydration info in server response](errors/NG0505)                                |
+| `NG0506`  | [NgZone remains unstable](errors/NG0506)                                             |
+| `NG0507`  | [HTML content was altered after SSR](errors/NG0507)                                  |
+| `NG0600`  | [Signal write in a disallowed context](errors/NG0600)                                |
+| `NG0602`  | [Disallowed function call inside reactive context](errors/NG0602)                    |
+| `NG0750`  | [@defer dependencies failed to load](errors/NG0750)                                  |
+| `NG0751`  | [@defer behavior when HMR is enabled](errors/NG0751)                                 |
+| `NG0904`  | [Unsafe value used in a resource URL context](errors/NG0904)                         |
+| `NG0910`  | [Unsafe bindings on an element](errors/NG0910)                                       |
+| `NG0912`  | [Component ID generation collision](errors/NG0912)                                   |
+| `NG0913`  | [Runtime Performance Warnings](errors/NG0913)                                        |
+| `NG0919`  | [Circular Dependency Detected](errors/NG0919)                                        |
+| `NG0950`  | [Required input is accessed before a value is set](errors/NG0950)                    |
+| `NG0951`  | [Child query result is required but no value is available](errors/NG0951)            |
+| `NG0955`  | [Track expression resulted in duplicated keys for a given collection](errors/NG0955) |
+| `NG0956`  | [Tracking expression caused re-creation of the DOM structure](errors/NG0956)         |
+| `NG0991`  | [Resource completed before producing a value](errors/NG0991)                         |
+| `NG01002` | [Missing Control Value](errors/NG01002)                                              |
+| `NG01055` | [Missing control for `formControlName`](errors/NG01055)                              |
+| `NG01101` | [Wrong Async Validator Return Type](errors/NG01101)                                  |
+| `NG01203` | [Missing value accessor](errors/NG01203)                                             |
+| `NG01902` | [Orphan field in signal forms](errors/NG01902)                                       |
+| `NG02200` | [Missing Iterable Differ](errors/NG02200)                                            |
+| `NG02800` | [JSONP support in HttpClient configuration](errors/NG02800)                          |
+| `NG02802` | [Headers not transferred by HttpTransferCache](errors/NG02802)                       |
+| `NG02825` | [Fetch response body exceeds the configured limit](errors/NG02825)                   |
+| `NG05000` | [Hydration with unsupported Zone.js instance.](errors/NG05000)                       |
+| `NG05104` | [Root element was not found.](errors/NG05104)                                        |
+| `NG05106` | [Insertion reference node not found](errors/NG05106)                                 |
+| `NG05201` | [Unsafe resource URL passed to DomSanitizer](errors/NG05201)                         |
+| `NG05703` | [Suspicious URL origin change during SSR](errors/NG05703)                            |
+
+## Compiler errors
+
+| Code     | Name                                                        |
+| :------- | :---------------------------------------------------------- |
+| `NG1001` | [Argument Not Literal](errors/NG1001)                       |
+| `NG2003` | [Missing Token](errors/NG2003)                              |
+| `NG2009` | [Invalid Shadow DOM selector](errors/NG2009)                |
+| `NG3003` | [Import Cycle Detected](errors/NG3003)                      |
+| `NG6100` | [NgModule.id Set to module.id anti-pattern](errors/NG6100)  |
+| `NG8001` | [Invalid Element](errors/NG8001)                            |
+| `NG8002` | [Invalid Attribute](errors/NG8002)                          |
+| `NG8003` | [Missing Reference Target](errors/NG8003)                   |
+| `NG8011` | [Control Flow Preventing Content Projection](errors/NG8011) |
+| `NG8023` | [Multiple Components Match Same Element](errors/NG8023)     |
+| `NG8024` | [Conflicting Host Directive Binding](errors/NG8024)         |
+
+---
+
+### PAGE: Extended diagnostics
+
+# Extended Diagnostics
+
+There are many coding patterns that are technically valid to the compiler or runtime, but which may have complex nuances or caveats.
+These patterns may not have the intended effect expected by a developer, which often leads to bugs.
+The Angular compiler includes "extended diagnostics" which identify many of these patterns, in order to warn developers about the potential issues and enforce common best practices within a codebase.
+
+## Diagnostics
+
+Currently, Angular supports the following extended diagnostics:
+
+| Code     | Name                                                                  |
+| :------- | :-------------------------------------------------------------------- |
+| `NG8101` | [`invalidBananaInBox`](extended-diagnostics/NG8101)                   |
+| `NG8102` | [`nullishCoalescingNotNullable`](extended-diagnostics/NG8102)         |
+| `NG8103` | [`missingControlFlowDirective`](extended-diagnostics/NG8103)          |
+| `NG8104` | [`textAttributeNotBinding`](extended-diagnostics/NG8104)              |
+| `NG8105` | [`missingNgForOfLet`](extended-diagnostics/NG8105)                    |
+| `NG8106` | [`suffixNotSupported`](extended-diagnostics/NG8106)                   |
+| `NG8107` | [`optionalChainNotNullable`](extended-diagnostics/NG8107)             |
+| `NG8108` | [`skipHydrationNotStatic`](extended-diagnostics/NG8108)               |
+| `NG8109` | [`interpolatedSignalNotInvoked`](extended-diagnostics/NG8109)         |
+| `NG8111` | [`uninvokedFunctionInEventBinding`](extended-diagnostics/NG8111)      |
+| `NG8112` | [`unusedLetDeclaration`](extended-diagnostics/NG8112)                 |
+| `NG8113` | [`unusedStandaloneImports`](extended-diagnostics/NG8113)              |
+| `NG8114` | [`unparenthesizedNullishCoalescing`](extended-diagnostics/NG8114)     |
+| `NG8115` | [`uninvokedTrackFunction`](extended-diagnostics/NG8115)               |
+| `NG8116` | [`missingStructuralDirective`](extended-diagnostics/NG8116)           |
+| `NG8117` | [`uninvokedFunctionInTextInterpolation`](extended-diagnostics/NG8117) |
+| `NG8119` | [`numericCssPropertyRequiresUnit`](extended-diagnostics/NG8119)       |
+| `NG8021` | [`deferTriggerMisconfiguration`](extended-diagnostics/NG8021)         |
+
+## Configuration
+
+Extended diagnostics are warnings by default and do not block compilation.
+Each diagnostic can be configured as either:
+
+| Error category | Effect                                                                                                                                                                   |
+| :------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `warning`      | Default - The compiler emits the diagnostic as a warning but does not block compilation. The compiler will still exist with status code 0, even if warnings are emitted. |
+| `error`        | The compiler emits the diagnostic as an error and fails the compilation. The compiler will exit with a non-zero status code if one or more errors are emitted.           |
+| `suppress`     | The compiler does _not_ emit the diagnostic at all.                                                                                                                      |
+
+Check severity can be configured as an [Angular compiler option](reference/configs/angular-compiler-options):
+
+```json
+{
+  "angularCompilerOptions": {
+    "extendedDiagnostics": {
+      "checks": {
+        "invalidBananaInBox": "suppress"
+      },
+      "defaultCategory": "error"
+    }
+  }
+}
+```
+
+The `checks` field maps the name of individual diagnostics to their associated category.
+See [Diagnostics](#diagnostics) for a complete list of extended diagnostics and the name to use for configuring them.
+
+The `defaultCategory` field is used for any diagnostics that are not explicitly listed under `checks`.
+If not set, such diagnostics will be treated as `warning`.
+
+Extended diagnostics will emit when [`strictTemplates`](tools/cli/template-typecheck#strict-mode) is enabled.
+This is required to allow the compiler to better understand Angular template types and provide accurate and meaningful diagnostics.
+
+## Semantic Versioning
+
+The Angular team intends to add or enable new extended diagnostics in **minor** versions of Angular (see [semver](https://docs.npmjs.com/about-semantic-versioning)).
+This means that upgrading Angular may show new warnings in your existing codebase.
+This enables the team to deliver features more quickly and to make extended diagnostics more accessible to developers.
+
+However, setting `"defaultCategory": "error"` will promote such warnings to hard errors.
+This can cause a minor version upgrade to introduce compilation errors, which may be seen as a semver non-compliant breaking change.
+Any new diagnostics can be suppressed or demoted to warnings via the above [configuration](#configuration), so the impact of a new diagnostic should be minimal to
+projects that treat extended diagnostics as errors by default.
+Defaulting to error is a very powerful tool; just be aware of this semver caveat when deciding if `error` is the right default for your project.
+
+## New Diagnostics
+
+The Angular team is always open to suggestions about new diagnostics that could be added.
+Extended diagnostics should generally:
+
+- Detect a common, non-obvious developer mistake with Angular templates
+- Clearly articulate why this pattern can lead to bugs or unintended behavior
+- Suggest one or more clear solutions
+- Have a low, preferably zero, false-positive rate
+- Apply to the vast majority of Angular applications (not specific to an unofficial library)
+- Improve program correctness or performance (not style, that responsibility falls to a linter)
+
+If you have an idea for an extended diagnostic which fits these criteria, consider filing a [feature request](https://github.com/angular/angular/issues/new?template=2-feature-request.yaml).
+
+---
+
+### PAGE: Update guide
+
+# Keeping your Angular projects up-to-date
+
+Just like Web and the entire web ecosystem, Angular is continuously improving.
+Angular balances continuous improvement with a strong focus on stability and making updates straightforward.
+Keeping your Angular application up-to-date enables you to take advantage of leading-edge new features, as well as optimizations and bug fixes.
+
+This document contains information and resources to help you keep your Angular applications and libraries up-to-date.
+
+For information about our versioning policy and practices — including support and deprecation practices, as well as the release schedule — see [Angular versioning and releases](reference/releases 'Angular versioning and releases').
+
+HELPFUL: If you are currently using AngularJS, see [Upgrading from AngularJS](https://angular.io/guide/upgrade 'Upgrading from AngularJS').
+_AngularJS_ is the name for all v1.x versions of Angular.
+
+## Getting notified of new releases
+
+To be notified when new releases are available, follow [@angular](https://x.com/angular '@angular on X') on X (formerly Twitter) or subscribe to the [Angular blog](https://blog.angular.dev 'Angular blog').
+
+## Learning about new features
+
+What's new? What's changed? We share the most important things you need to know on the Angular blog in [release announcements](https://blog.angular.dev/ 'Angular blog - release announcements').
+
+To review a complete list of changes, organized by version, see the [Angular change log](https://github.com/angular/angular/blob/main/CHANGELOG.md 'Angular change log').
+
+## Checking your version of Angular
+
+To check your application's version of Angular use the `ng version` command from within your project directory.
+
+## Finding the current version of Angular
+
+The most recent stable released version of Angular appears [on npm](https://www.npmjs.com/package/@angular/core 'Angular on npm') under "Version." For example, `16.2.4`.
+
+You can also find the most current version of Angular by using the CLI command [`ng update`](cli/update).
+By default, [`ng update`](cli/update) (without additional arguments) lists the updates that are available to you.
+
+## Updating your environment and apps
+
+To make updating uncomplicated, we provide complete instructions in the interactive [Angular Update Guide](update-guide).
+
+The Angular Update Guide provides customized update instructions, based on the current and target versions that you specify.
+It includes basic and advanced update paths, to match the complexity of your applications.
+It also includes troubleshooting information and any recommended manual changes to help you get the most out of the new release.
+
+For simple updates, the CLI command [`ng update`](cli/update) is all you need.
+Without additional arguments, [`ng update`](cli/update) lists the updates that are available to you and provides recommended steps to update your application to the most current version.
+
+[Angular Versioning and Releases](reference/releases#angular-versioning 'Angular Release Practices, Versioning') describes the level of change that you can expect based on a release's version number.
+It also describes supported update paths.
+
+## Resource summary
+
+- Release announcements:
+  [Angular blog - release announcements](https://blog.angular.dev/ 'Angular blog announcements about recent releases')
+
+- Release details:
+  [Angular change log](https://github.com/angular/angular/blob/main/CHANGELOG.md 'Angular change log')
+
+- Update instructions:
+  [Angular Update Guide](update-guide)
+
+- Update command reference:
+  [Angular CLI `ng update` command reference](cli/update)
+
+- Versioning, release, support, and deprecation practices:
+  [Angular versioning and releases](reference/releases 'Angular versioning and releases')
+
+---
+
+### PAGE: Contribute to Angular
+
+# Contributing to Angular
+
+We would love for you to contribute to Angular and help make it even better than it is today!
+As a contributor, here are the guidelines we would like you to follow:
+
+- [Code of Conduct](#coc)
+- [Question or Problem?](#question)
+- [Issues and Bugs](#issue)
+- [Feature Requests](#feature)
+- [Submission Guidelines](#submit)
+- [Coding Rules](#rules)
+- [Commit Message Guidelines](#commit)
+- [Signing the CLA](#cla)
+
+## <a name="coc"></a> Code of Conduct
+
+Help us keep Angular open and inclusive.
+Please read and follow our [Code of Conduct][coc].
+
+## <a name="question"></a> Got a Question or Problem?
+
+Do not open issues for general support questions as we want to keep GitHub issues for bug reports and feature requests.
+Instead, we recommend using [Stack Overflow](https://stackoverflow.com/questions/tagged/angular) to ask support-related questions. When creating a new question on Stack Overflow, make sure to add the `angular` tag.
+
+Stack Overflow is a much better place to ask questions since:
+
+- there are thousands of people willing to help on Stack Overflow
+- questions and answers stay available for public viewing so your question/answer might help someone else
+- Stack Overflow's voting system assures that the best answers are prominently visible.
+
+To save your and our time, we will systematically close all issues that are requests for general support and redirect people to Stack Overflow.
+
+If you would like to chat about the question in real-time, you can reach out via [the Angular community Discord server][discord].
+
+## <a name="issue"></a> Found a Bug?
+
+If you find a bug in the source code, you can help us by [submitting an issue](#submit-issue) to our [GitHub Repository][github].
+Even better, you can [submit a Pull Request](#submit-pr) with a fix.
+
+## <a name="feature"></a> Missing a Feature?
+
+You can _request_ a new feature by [submitting an issue](#submit-issue) to our GitHub Repository.
+If you would like to _implement_ a new feature, please consider the size of the change in order to determine the right steps to proceed:
+
+- For a **Major Feature**, first open an issue and outline your proposal so that it can be discussed.
+  This process allows us to better coordinate our efforts, prevent duplication of work, and help you to craft the change so that it is successfully accepted into the project.
+
+  **Note**: Adding a new topic to the documentation, or significantly re-writing a topic, counts as a major feature.
+
+- **Small Features** can be crafted and directly [submitted as a Pull Request](#submit-pr).
+
+## <a name="submit"></a> Submission Guidelines
+
+### <a name="submit-issue"></a> Submitting an Issue
+
+Before you submit an issue, please search the issue tracker. An issue for your problem might already exist and the discussion might inform you of workarounds readily available.
+
+We want to fix all the issues as soon as possible, but before fixing a bug, we need to reprod

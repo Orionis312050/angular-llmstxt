@@ -1,0 +1,923 @@
+r’s event system is extensible via custom event plugins registered with the `EVENT_MANAGER_PLUGINS` injection token.
+
+### Implementing Event Plugin
+
+To create a custom event plugin, extend the `EventManagerPlugin` class and implement the required methods.
+
+```ts
+import {Injectable} from '@angular/core';
+import {EventManagerPlugin} from '@angular/platform-browser';
+
+@Injectable()
+export class DebounceEventPlugin extends EventManagerPlugin {
+  constructor() {
+    super(document);
+  }
+
+  // Define which events this plugin supports
+  override supports(eventName: string) {
+    return /debounce/.test(eventName);
+  }
+
+  // Handle the event registration
+  override addEventListener(element: HTMLElement, eventName: string, handler: Function) {
+    // Parse the event: e.g., "click.debounce.500"
+    // event: "click", delay: 500
+    const [event, , delay = '300'] = eventName.split('.');
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const listener = (e: Event) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        handler(e);
+      }, Number(delay));
+    };
+
+    element.addEventListener(event, listener);
+
+    // Return cleanup function
+    return () => {
+      clearTimeout(timeoutId);
+      element.removeEventListener(event, listener);
+    };
+  }
+}
+```
+
+Register your custom plugin using the `EVENT_MANAGER_PLUGINS` token in your application's providers:
+
+```ts
+import {bootstrapApplication, EVENT_MANAGER_PLUGINS} from '@angular/platform-browser';
+import {App} from './app';
+import {DebounceEventPlugin} from './debounce-event-plugin';
+
+bootstrapApplication(App, {
+  providers: [
+    {
+      provide: EVENT_MANAGER_PLUGINS,
+      useClass: DebounceEventPlugin,
+      multi: true,
+    },
+  ],
+});
+```
+
+Once registered, you can use your custom event syntax in templates, as well as with the `host` property:
+
+```angular-ts
+@Component({
+  template: `
+    <input
+      type="text"
+      (input.debounce.500)="onSearch($event.target.value)"
+      placeholder="Search..."
+    />
+  `,
+  ...
+})
+export class Search {
+ onSearch(query: string): void {
+    console.log('Searching for:', query);
+  }
+}
+```
+
+```ts
+@Component({
+  ...,
+  host: {
+    '(click.debounce.500)': 'handleDebouncedClick()',
+  },
+})
+export class AwesomeCard {
+  handleDebouncedClick(): void {
+   console.log('Debounced click!');
+  }
+}
+```
+
+---
+
+### PAGE: Binding text, properties and attributes
+
+# Binding dynamic text, properties and attributes
+
+In Angular, a **binding** creates a dynamic connection between a component's template and its data. This connection ensures that changes to the component's data automatically update the rendered template.
+
+## Render dynamic text with text interpolation
+
+You can bind dynamic text in templates with double curly braces, which tells Angular that it is responsible for the expression inside and ensuring it is updated correctly. This is called **text interpolation**.
+
+```angular-ts
+@Component({
+  template: `
+    <p>Your color preference is {{ theme }}.</p>
+  `,
+  ...
+})
+export class App {
+  theme = 'dark';
+}
+```
+
+In this example, when the snippet is rendered to the page, Angular will replace `{{ theme }}` with `dark`.
+
+```angular-html
+<!-- Rendered Output -->
+<p>Your color preference is dark.</p>
+```
+
+Bindings that change over time should read values from [signals](/guide/signals). Angular tracks the signals read in the template, and updates the rendered page when those signal values change.
+
+```angular-ts
+@Component({
+  template: `
+    <!-- Does not necessarily update when `welcomeMessage` changes. -->
+    <p>{{ welcomeMessage }}</p>
+
+    <p>Your color preference is {{ theme() }}.</p> <!-- Always updates when the value of the `theme` signal changes. -->
+  `
+  ...
+})
+export class App {
+  welcomeMessage = "Welcome, enjoy this app that we built for you";
+  theme = signal('dark');
+}
+```
+
+For more details, see the [Signals guide](/guide/signals).
+
+Continuing the theme example, if a user clicks on a button that updates the `theme` signal to `'light'` after the page loads, the page updates accordingly to:
+
+```angular-html
+<!-- Rendered Output -->
+<p>Your color preference is light.</p>
+```
+
+You can use text interpolation anywhere you would normally write text in HTML.
+
+Expression values are converted to a string. `null` and `undefined` render as an empty string. Objects and arrays are converted using the value’s `toString` method.
+
+## Binding dynamic properties and attributes
+
+Angular supports binding dynamic values into object properties and HTML attributes with square brackets.
+
+You can bind to properties on an HTML element's DOM instance, a [component](/guide/components) instance, or a [directive](/guide/directives) instance.
+
+### Native element properties
+
+Every HTML element has a corresponding DOM representation. For example, each `<button>` HTML element corresponds to an instance of `HTMLButtonElement` in the DOM. In Angular, you use property bindings to set values directly to the DOM representation of the element.
+
+```angular-html
+<!-- Bind the `disabled` property on the button element's DOM object -->
+<button [disabled]="isFormValid()">Save</button>
+```
+
+In this example, every time `isFormValid` changes, Angular automatically sets the `disabled` property of the `HTMLButtonElement` instance.
+
+### Component and directive properties
+
+When an element is an Angular component, you can use property bindings to set component input properties using the same square bracket syntax.
+
+```angular-html
+<!-- Bind the `value` property on the `MyListbox` component instance. -->
+<my-listbox [value]="mySelection()" />
+```
+
+In this example, every time `mySelection` changes, Angular automatically sets the `value` property of the `MyListbox` instance.
+
+You can bind to directive properties as well.
+
+```angular-html
+<!-- Bind to the `ngSrc` property of the `NgOptimizedImage` directive  -->
+<img [ngSrc]="profilePhotoUrl()" alt="The current user's profile photo" />
+```
+
+### Attributes
+
+When you need to set HTML attributes that do not have corresponding DOM properties, such as SVG attributes, you can bind attributes to elements in your template with the `attr.` prefix.
+
+<!-- prettier-ignore -->
+```angular-html
+<!-- Bind the `role` attribute on the `<ul>` element to the component's `listRole` property. -->
+<ul [attr.role]="listRole()">
+```
+
+In this example, every time `listRole` changes, Angular automatically sets the `role` attribute of the `<ul>` element by calling `setAttribute`.
+
+If the value of an attribute binding is `null` or `undefined`, Angular removes the attribute by calling `removeAttribute`.
+
+### Text interpolation in properties and attributes
+
+You can also use text interpolation syntax in properties and attributes by using the double curly brace syntax instead of square braces around the property or attribute name. When using this syntax, Angular treats the assignment as a property binding.
+
+```angular-html
+<!-- Binds a value to the `alt` property of the image element's DOM object. -->
+<img src="profile-photo.jpg" alt="Profile photo of {{ firstName() }}" />
+```
+
+## CSS class and style property bindings
+
+Angular supports additional features for binding CSS classes and CSS style properties to elements.
+
+### CSS classes
+
+You can create a CSS class binding to conditionally add or remove a CSS class on an element based on whether the bound value is [truthy or falsy](https://developer.mozilla.org/en-US/docs/Glossary/Truthy).
+
+<!-- prettier-ignore -->
+```angular-html
+<!-- When `isExpanded` is truthy, add the `expanded` CSS class. -->
+<ul [class.expanded]="isExpanded()">
+```
+
+You can also bind directly to the `class` property. Angular accepts three types of value:
+
+| Description of `class` value                                                                                                                                      | TypeScript type       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| A string containing one or more CSS classes separated by spaces                                                                                                   | `string`              |
+| An array of CSS class strings                                                                                                                                     | `string[]`            |
+| An object where each property name is a CSS class name and each corresponding value determines whether that class is applied to the element, based on truthiness. | `Record<string, any>` |
+
+```angular-ts
+@Component({
+  template: `
+    <ul [class]="listClasses"> ... </ul>
+    <section [class]="sectionClasses()"> ... </section>
+    <button [class]="buttonClasses()"> ... </button>
+  `,
+  ...
+})
+export class UserProfile {
+  listClasses = 'full-width outlined';
+  sectionClasses = signal(['expandable', 'elevated']);
+  buttonClasses = signal({
+    highlighted: true,
+    embiggened: false,
+  });
+}
+```
+
+The above example renders the following DOM:
+
+<!-- prettier-ignore -->
+```angular-html
+<ul class="full-width outlined"> ... </ul>
+<section class="expandable elevated"> ... </section>
+<button class="highlighted"> ... </button>
+```
+
+Angular splits a string value on whitespace and ignores empty strings.
+
+When using static CSS classes, directly binding `class`, and binding specific classes, Angular intelligently combines all of the classes in the rendered result.
+
+```angular-ts
+@Component({
+  template: `<ul class="list" [class]="listType()" [class.expanded]="isExpanded()"> ...`,
+  ...
+})
+export class Listbox {
+  listType = signal('box');
+  isExpanded = signal(true);
+}
+```
+
+In the example above, Angular renders the `ul` element with all three CSS classes.
+
+<!-- prettier-ignore -->
+```angular-html
+<ul class="list box expanded">
+```
+
+Angular does not guarantee any specific order of CSS classes on rendered elements.
+
+When binding `class` to an array or an object, Angular compares the previous value to the current value with the triple-equals operator (`===`). You must create a new object or array instance when you modify these values in order for Angular to apply any updates.
+
+If an element has multiple bindings for the same CSS class, Angular resolves collisions by following its style precedence order.
+
+NOTE: Class bindings do not support space-separated class names in a single key. They also don't support mutations on objects as the reference of the binding remains the same. If you need one or the other, use the [ngClass](/api/common/NgClass) directive.
+
+### CSS style properties
+
+You can also bind to CSS style properties directly on an element.
+
+<!-- prettier-ignore -->
+```angular-html
+<!-- Set the CSS `display` property based on the `isExpanded` property. -->
+<section [style.display]="isExpanded() ? 'block' : 'none'">
+```
+
+You can further specify units for CSS properties that accept units.
+
+<!-- prettier-ignore -->
+```angular-html
+<!-- Set the CSS `height` property to a pixel value based on the `sectionHeightInPixels` property. -->
+<section [style.height.px]="sectionHeightInPixels()">
+```
+
+You can also set multiple style values in one binding. Angular accepts the following types of value:
+
+| Description of `style` value                                                                                              | TypeScript type       |
+| ------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| A string containing zero or more CSS declarations, such as `"display: flex; margin: 8px"`.                                | `string`              |
+| An object where each property name is a CSS property name and each corresponding value is the value of that CSS property. | `Record<string, any>` |
+
+```angular-ts
+@Component({
+  template: `
+    <ul [style]="listStyles()"> ... </ul>
+    <section [style]="sectionStyles()"> ... </section>
+  `,
+  ...
+})
+export class UserProfile {
+  listStyles = signal('display: flex; padding: 8px');
+  sectionStyles = signal({
+    border: '1px solid black',
+    'font-weight': 'bold',
+  });
+}
+```
+
+The above example renders the following DOM.
+
+<!-- prettier-ignore -->
+```angular-html
+<ul style="display: flex; padding: 8px"> ... </ul>
+<section style="border: 1px solid black; font-weight: bold"> ... </section>
+```
+
+When binding `style` to an object, Angular compares the previous value to the current value with the triple-equals operator (`===`). You must create a new object instance when you modify these values in order for Angular to apply any updates.
+
+If an element has multiple bindings for the same style property, Angular resolves collisions by following its style precedence order.
+
+## ARIA attributes
+
+Angular supports binding string values to ARIA attributes.
+
+```angular-html
+<button type="button" [aria-label]="actionLabel()">
+  {{ actionLabel() }}
+</button>
+```
+
+Angular writes the string value to the element’s `aria-label` attribute and removes it when the bound value is `null` or `undefined`.
+
+Some ARIA features expose DOM properties or directive inputs that accept structured values (such as element references). Use standard property bindings for those cases. See the [accessibility guide](/best-practices/a11y#aria-attributes-and-properties) for examples and additional guidance.
+
+---
+
+### PAGE: Control Flow
+
+# Control flow
+
+Angular templates support control flow blocks that let you conditionally show, hide, and repeat elements.
+
+## Conditionally display content with `@if`, `@else if` and `@else`
+
+The `@if` block conditionally displays its content when its condition expression is truthy:
+
+```angular-html
+@if (a > b) {
+  <p>{{ a }} is greater than {{ b }}</p>
+}
+```
+
+If you want to display alternative content, you can do so by providing any number of `@else if` blocks and a singular `@else` block.
+
+```angular-html
+@if (a > b) {
+  {{ a }} is greater than {{ b }}
+} @else if (b > a) {
+  {{ a }} is less than {{ b }}
+} @else {
+  {{ a }} is equal to {{ b }}
+}
+```
+
+### Referencing the conditional expression's result
+
+The `@if` conditional supports saving the result of the conditional expression into a variable for reuse inside of the block.
+
+```angular-html
+@if (user.profile.settings.startDate; as startDate) {
+  {{ startDate }}
+}
+```
+
+This can be useful for referencing longer expressions that would be easier to read and maintain within the template.
+
+## Repeat content with the `@for` block
+
+The `@for` block loops through a collection and repeatedly renders the content of a block. The collection can be any JavaScript [iterable](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Iteration_protocols), but Angular has additional performance optimizations for `Array` values.
+
+A typical `@for` loop looks like:
+
+```angular-html
+@for (item of items; track item.id) {
+  {{ item.name }}
+}
+```
+
+Angular's `@for` block does not support flow-modifying statements like JavaScript's `continue` or `break`.
+
+### Why is `track` in `@for` blocks important?
+
+The `track` expression allows Angular to maintain a relationship between your data and the DOM nodes on the page. This allows Angular to optimize performance by executing the minimum necessary DOM operations when the data changes.
+
+Using track effectively can significantly improve your application's rendering performance when looping over data collections.
+
+Select a property that uniquely identifies each item in the `track` expression. If your data model includes a uniquely identifying property, commonly `id` or `uuid`, use this value. If your data does not include a field like this, strongly consider adding one.
+
+For static collections that never change, you can use `$index` to tell Angular to track each item by its index in the collection.
+
+If no other option is available, you can use the item itself as a tracking key. This tells Angular to track the item by its reference identity using the triple-equals operator (`===`). Avoid this option whenever possible as it can lead to significantly slower rendering updates, as Angular has no way to map which data item corresponds to which DOM nodes.
+
+```angular-html
+@for (item of items; track item) {
+  {{ item.name }}
+}
+```
+
+NOTE: Unlike `*ngFor`, the `@for` block prioritizes view reuse. If a tracked property changes but the object reference remains the same, Angular updates the view's bindings (including component inputs) rather than destroying and recreating the entire element.
+
+### Contextual variables in `@for` blocks
+
+Inside `@for` blocks, several implicit variables are always available:
+
+| Variable | Meaning                                       |
+| -------- | --------------------------------------------- |
+| `$count` | Number of items in a collection iterated over |
+| `$index` | Index of the current row                      |
+| `$first` | Whether the current row is the first row      |
+| `$last`  | Whether the current row is the last row       |
+| `$even`  | Whether the current row index is even         |
+| `$odd`   | Whether the current row index is odd          |
+
+These variables are always available with these names, but can be aliased via a `let` segment:
+
+```angular-html
+@for (item of items; track item.id; let idx = $index, e = $even) {
+  <p>Item #{{ idx }}: {{ item.name }}</p>
+}
+```
+
+The aliasing is useful when nesting `@for` blocks, letting you read variables from the outer `@for` block from an inner `@for` block.
+
+### Providing a fallback for `@for` blocks with the `@empty` block
+
+You can optionally include an `@empty` section immediately after the `@for` block content. The content of the `@empty` block displays when there are no items:
+
+```angular-html
+@for (item of items; track item.name) {
+  <li>{{ item.name }}</li>
+} @empty {
+  <li>There are no items.</li>
+}
+```
+
+## Conditionally display content with the `@switch` block
+
+While the `@if` block is great for most scenarios, the `@switch` block provides an alternate syntax to conditionally render data. Its syntax closely resembles JavaScript's `switch` statement.
+
+```angular-html
+@switch (userPermissions) {
+  @case ('admin') {
+    <app-admin-dashboard />
+  }
+  @case ('reviewer')
+  @case ('editor') {
+    <app-editor-dashboard />
+  }
+  @default {
+    <app-viewer-dashboard />
+  }
+}
+```
+
+The value of the conditional expression is compared to the case expression using the triple-equals (`===`) operator.
+
+**`@switch` does not have a fallthrough**, so you do not need an equivalent to a `break` or `return` statement in the block.
+
+You can specify multiple conditions for a single block by having consecutive `@case` statements.
+
+You can optionally include a `@default` block. The content of the `@default` block displays if none of the preceding case expressions match the switch value.
+
+If no `@case` matches the expression and there is no `@default` block, nothing is shown.
+
+### Exhaustive type checking
+
+`@switch` supports exhaustive type checking, allowing Angular to verify at compile time that all possible values of a union type are handled.
+
+By using `@default never;`, you explicitly declare that no remaining cases should exist. If the union type is later extended and a new case is not covered by an @case, Angular’s template type checker will report an error, helping you catch missing branches early.
+
+NOTE: Exhaustiveness checking relies on TypeScript's type narrowing, which only works on variables. It will not work if the switch condition is a function call or a signal (for example, `@switch (state())`). To work around this, assign the signal to a `@let` variable, e.g.: `@let mySignal = this.mySignal()`.
+
+```angular-ts
+@Component({
+  template: `
+    @switch (state) {
+      @case ('loggedOut') {
+        <button>Login</button>
+      }
+
+      @case ('loggedIn') {
+        <p>Welcome back!</p>
+      }
+
+      @default never;
+      <!-- throws because @case ('loading') is missing -->
+    }
+  `,
+})
+export class AppComponent {
+  state: 'loggedOut' | 'loading' | 'loggedIn' = 'loggedOut';
+}
+```
+
+When the switched expression is nested within a union, you must explicitly specify the expression to check for exhaustiveness.
+
+<!-- prettier-ignore -->
+```angular-ts
+@Component({
+  template: `
+    @switch (state.mode) {
+      @case ('show') {
+        {{ state.menu }};
+      }
+      @case ('hide') {}
+      @default never(state);
+    }
+  `,
+})
+export class App {
+  state!: {mode: 'hide'} | {mode: 'show'; menu: number};
+}
+```
+
+---
+
+### PAGE: Template variable declaration
+
+# Variables in templates
+
+Angular has two types of variable declarations in templates: local template variables and template reference variables.
+
+HELPFUL: In this guide, “template” does not mean the entire HTML template file. It refers only to a specific template construct or expression within the file.
+
+## Local template variables with `@let`
+
+Angular's `@let` syntax allows you to define a local variable and re-use it across a template, similar to the [JavaScript `let` syntax](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/let).
+
+### Using `@let`
+
+Use `@let` to declare a variable whose value is based on the result of a template expression. Angular automatically keeps the variable's value up-to-date with the given expression, similar to [bindings](/guide/templates/binding).
+
+```angular-html
+@let name = user.name;
+@let greeting = 'Hello, ' + name;
+@let data = data$ | async;
+@let pi = 3.14159;
+@let coordinates = {x: 50, y: 100};
+@let longExpression =
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit ' +
+  'sed do eiusmod tempor incididunt ut labore et dolore magna ' +
+  'Ut enim ad minim veniam...';
+```
+
+Each `@let` block can declare exactly one variable. You cannot declare multiple variables in the same block with a comma.
+
+### Referencing the value of `@let`
+
+Once you've declared a variable with `@let`, you can reuse it in the same template:
+
+```angular-html
+@let user = user$ | async;
+
+@if (user) {
+  <h1>Hello, {{ user.name }}</h1>
+  <user-avatar [photo]="user.photo" />
+
+  <ul>
+    @for (snack of user.favoriteSnacks; track snack.id) {
+      <li>{{ snack.name }}</li>
+    }
+  </ul>
+
+  <button (click)="update(user)">Update profile</button>
+}
+```
+
+### Assignability
+
+A key difference between `@let` and JavaScript's `let` is that `@let` cannot be reassigned after declaration. However, Angular automatically keeps the variable's value up-to-date with the given expression.
+
+```angular-html
+@let value = 1;
+
+<!-- Invalid - This does not work! -->
+<button (click)="value = value + 1">Increment the value</button>
+```
+
+### Variable scope
+
+`@let` declarations are scoped to the current view and its descendants. Angular creates a new view at component boundaries and wherever a template might contain dynamic content, such as control flow blocks, `@defer` blocks, or structural directives.
+
+Since `@let` declarations are not hoisted, they **cannot** be accessed by parent views or siblings:
+
+```angular-html
+@let topLevel = value;
+
+<div>
+  @let insideDiv = value;
+</div>
+
+<!-- Valid -->
+{{ topLevel }}
+<!-- Valid -->
+{{ insideDiv }}
+
+@if (condition) {
+  <!-- Valid -->
+  {{ topLevel + insideDiv }}
+
+  @let nested = value;
+
+  @if (condition) {
+    <!-- Valid -->
+    {{ topLevel + insideDiv + nested }}
+  }
+}
+
+<!-- Error, not hoisted from @if -->
+{{ nested }}
+```
+
+### Full syntax
+
+The `@let` syntax is formally defined as:
+
+- The `@let` keyword.
+- Followed by one or more whitespaces, not including new lines.
+- Followed by a valid JavaScript name and zero or more whitespaces.
+- Followed by the = symbol and zero or more whitespaces.
+- Followed by an Angular expression which can be multi-line.
+- Terminated by the `;` symbol.
+
+## Template reference variables
+
+Template reference variables give you a way to declare a variable that references a value from an element in your template.
+
+A template reference variable can refer to the following:
+
+- a DOM element within a template (including [custom elements](https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements))
+- an Angular component or directive
+- a [TemplateRef](/api/core/TemplateRef) from an [ng-template](/api/core/ng-template)
+
+You can use template reference variables to read information from one part of the template in another part of the same template.
+
+### Declaring a template reference variable
+
+You can declare a variable on an element in a template by adding an attribute that starts with the hash character (`#`) followed by the variable name.
+
+```angular-html
+<!-- Create a template reference variable named "taskInput", referring to the HTMLInputElement. -->
+<input #taskInput placeholder="Enter task name" />
+```
+
+### Assigning values to template reference variables
+
+Angular assigns a value to template variables based on the element on which the variable is declared.
+
+If you declare the variable on a Angular component, the variable refers to the component instance.
+
+```angular-html
+<!-- The `startDate` variable is assigned the instance of `MyDatepicker`. -->
+<my-datepicker #startDate />
+```
+
+If you declare the variable on an `<ng-template>` element, the variable refers to a TemplateRef instance which represents the template. For more information, see [How Angular uses the asterisk, \*, syntax](/guide/directives/structural-directives#structural-directive-shorthand) in [Structural directives](/guide/directives/structural-directives).
+
+```angular-html
+<!-- The `myFragment` variable is assigned the `TemplateRef` instance corresponding to this template fragment. -->
+<ng-template #myFragment>
+  <p>This is a template fragment</p>
+</ng-template>
+```
+
+If you declare the variable on any other displayed element, the variable refers to the `HTMLElement` instance.
+
+```angular-html
+<!-- The "taskInput" variable refers to the HTMLInputElement instance. -->
+<input #taskInput placeholder="Enter task name" />
+```
+
+#### Assigning a reference to an Angular directive
+
+Angular directives may have an `exportAs` property that defines a name by which the directive can be referenced in a template:
+
+```angular-ts
+@Directive({
+  selector: '[dropZone]',
+  exportAs: 'dropZone',
+})
+export class DropZone {
+  /* ... */
+}
+```
+
+When you declare a template variable on an element, you can assign that variable a directive instance by specifying this `exportAs` name:
+
+```angular-html
+<!-- The `firstZone` variable refers to the `DropZone` directive instance. -->
+<section dropZone #firstZone="dropZone">...</section>
+```
+
+You cannot refer to a directive that does not specify an `exportAs` name.
+
+### Using template reference variables with queries
+
+In addition to using template variables to read values from another part of the same template, you can also use this style of variable declaration to "mark" an element for [component and directive queries](/guide/components/queries).
+
+When you want to query for a specific element in a template, you can declare a template variable on that element and then query for the element based on the variable name.
+
+```angular-html
+<input #description value="Original description" />
+```
+
+```angular-ts
+@Component({
+  /* ... */,
+  template: `<input #description value="Original description">`,
+})
+export class AppComponent {
+  // Query for the input element based on the template variable name.
+  @ViewChild('description') input: ElementRef | undefined;
+}
+```
+
+See [Referencing children with queries](/guide/components/queries) for more information on queries.
+
+### Template variable scope
+
+Just like variables in JavaScript or TypeScript code, template variables are scoped to the template that declares them.
+
+Similarly, [control flow blocks](guide/templates/control-flow) like `@if` and `@for`, [structural directives](guide/directives/structural-directives), and `<ng-template>` declarations create a new nested template scope, much like JavaScript's control flow statements like `if` and `for` create new lexical scopes. You cannot access template variables within one of these nested templates from outside of its boundaries.
+
+HELPFUL: Define a variable only once in the template so the runtime value remains predictable.
+
+#### Accessing in a nested template
+
+An inner template can access template variables that the outer template defines.
+
+In the following example, changing the text in the `<input>` changes the value in the `<span>` because Angular immediately updates changes through the template variable, `ref1`.
+
+```angular-html
+<input #ref1 type="text" [(ngModel)]="firstExample" />
+
+@if (true) {
+  <span>Value: {{ ref1.value }}</span>
+}
+```
+
+In this case, the `@if` block creates a new template scope, which includes the `ref1` variable from its parent scope.
+
+However, accessing a template variable from a child scope in the parent template doesn't work:
+
+```angular-html {avoid}
+@if (true) {
+  <input #ref2 type="text" [(ngModel)]="secondExample" />
+}
+
+<span>Value: {{ ref2?.value }}</span>
+```
+
+Here, `ref2` is declared in the child scope created by `@if`, and is not accessible from the parent template.
+
+---
+
+### PAGE: Deferred loading of components
+
+# Deferred loading with `@defer`
+
+Deferrable views, also known as `@defer` blocks, reduce the initial bundle size of your application by deferring the loading of code that is not strictly necessary for the initial rendering of a page. This often results in a faster initial load and improvement in Core Web Vitals (CWV), primarily Largest Contentful Paint (LCP) and Time to First Byte (TTFB).
+
+To use this feature, you can declaratively wrap a section of your template in a @defer block:
+
+```angular-html
+@defer {
+  <large-component />
+}
+```
+
+The code for any components, directives, and pipes inside the `@defer` block is split into a separate JavaScript file and loaded only when necessary, after the rest of the template has been rendered.
+
+Deferrable views support a variety of triggers, prefetching options, and sub-blocks for placeholder, loading, and error state management.
+
+## Which dependencies are deferred?
+
+Components, directives, pipes, and any component CSS styles can be deferred when loading an application.
+
+In order for the dependencies within a `@defer` block to be deferred, they need to meet two conditions:
+
+1. **They must be standalone.** Non-standalone dependencies cannot be deferred and are still eagerly loaded, even if they are inside of `@defer` blocks.
+1. **They cannot be referenced outside of `@defer` blocks within the same file.** If they are referenced outside the `@defer` block or referenced within ViewChild queries, the dependencies will be eagerly loaded.
+
+The _transitive_ dependencies of the components, directives and pipes used in the `@defer` block do not strictly need to be standalone; transitive dependencies can still be declared in an `NgModule` and participate in deferred loading.
+
+Angular's compiler produces a [dynamic import](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import) statement for each component, directive, and pipe used in the `@defer` block. The main content of the block renders after all the imports resolve. Angular does not guarantee any particular order for these imports.
+
+## How to manage different stages of deferred loading
+
+`@defer` blocks have several sub blocks to allow you to gracefully handle different stages in the deferred loading process.
+
+### `@defer`
+
+This is the primary block that defines the section of content that is lazily loaded. It is not rendered initially– deferred content loads and renders once the specified [trigger](#controlling-deferred-content-loading-with-triggers) occurs or the `when` condition is met.
+
+By default, a `@defer` block is triggered when the browser state becomes [idle](/guide/templates/defer#idle).
+
+```angular-html
+@defer {
+  <large-component />
+}
+```
+
+### Show placeholder content with `@placeholder`
+
+By default, defer blocks do not render any content before they are triggered.
+
+The `@placeholder` is an optional block that declares what content to show before the `@defer` block is triggered.
+
+```angular-html
+@defer {
+  <large-component />
+} @placeholder {
+  <p>Placeholder content</p>
+}
+```
+
+While optional, certain triggers may require the presence of either a `@placeholder` or a [template reference variable](/guide/templates/variables#template-reference-variables) to function. See the [Triggers](#controlling-deferred-content-loading-with-triggers) section for more details.
+
+Angular replaces placeholder content with the main content once loading is complete. You can use any content in the placeholder section including plain HTML, components, directives, and pipes. Keep in mind the _dependencies of the placeholder block are eagerly loaded_.
+
+The `@placeholder` block accepts an optional parameter to specify the `minimum` amount of time that this placeholder should be shown after the placeholder content initially renders.
+
+```angular-html
+@defer {
+  <large-component />
+} @placeholder (minimum 500ms) {
+  <p>Placeholder content</p>
+}
+```
+
+This `minimum` parameter is specified in time increments of milliseconds (ms) or seconds (s). You can use this parameter to prevent fast flickering of placeholder content in the case that the deferred dependencies are fetched quickly.
+
+### Show loading content with `@loading`
+
+The `@loading` block is an optional block that allows you to declare content that is shown while deferred dependencies are loading. It replaces the `@placeholder` block once loading is triggered.
+
+```angular-html
+@defer {
+  <large-component />
+} @loading {
+  <img alt="loading..." src="loading.gif" />
+} @placeholder {
+  <p>Placeholder content</p>
+}
+```
+
+Its dependencies are eagerly loaded (similar to `@placeholder`).
+
+The `@loading` block accepts two optional parameters to help prevent fast flickering of content that may occur when deferred dependencies are fetched quickly,:
+
+- `minimum` - the minimum amount of time that this placeholder should be shown
+- `after` - the amount of time to wait after loading begins before showing the loading template
+
+```angular-html
+@defer {
+  <large-component />
+} @loading (after 100ms; minimum 1s) {
+  <img alt="loading..." src="loading.gif" />
+}
+```
+
+Both parameters are specified in time increments of milliseconds (ms) or seconds (s). In addition, the timers for both parameters begin immediately after the loading has been triggered.
+
+### Show error state when deferred loading fails with `@error`
+
+The `@error` block is an optional block that displays if deferred loading fails. Similar to `@placeholder` and `@loading`, the dependencies of the @error block are eagerly loaded.
+
+```angular-html
+@defer {
+  <large-component />
+} @error {
+  <p>Failed to load large component.</p>
+}
+```
+
+## Controlling deferred content loading with triggers
+
+You can specify **triggers** that control when Angular loads and displays deferred content.
+
+When a `@defer` block is triggered, it replaces placeholder content with lazily load

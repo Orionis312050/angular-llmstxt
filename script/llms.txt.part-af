@@ -1,0 +1,723 @@
+ Shorthand syntax: -->
+<p class="data-view" *select="let data; from: source">The data is: {{ data }}</p>
+
+<!-- Long-form syntax: -->
+<ng-template select let-data [selectFrom]="source">
+  <p class="data-view">The data is: {{ data }}</p>
+</ng-template>
+```
+
+Shorthand syntax is expanded through a set of conventions. A more thorough [grammar](#structural-directive-syntax-reference) is defined below, but in the above example, this transformation can be explained as follows:
+
+The first part of the `*select` expression is `let data`, which declares a template variable `data`. Since no assignment follows, the template variable is bound to the template context property `$implicit`.
+
+The second piece of syntax is a key-expression pair, `from source`. `from` is a binding key and `source` is a regular template expression. Binding keys are mapped to properties by transforming them to PascalCase and prepending the structural directive selector. The `from` key is mapped to `selectFrom`, which is then bound to the expression `source`. This is why many structural directives will have inputs that are all prefixed with the structural directive's selector.
+
+## One structural directive per element
+
+You can only apply one structural directive per element when using the shorthand syntax. This is because there is only one `<ng-template>` element onto which that directive gets unwrapped. Multiple directives would require multiple nested `<ng-template>`, and it's unclear which directive should be first. `<ng-container>` can be used to create wrapper layers when multiple structural directives need to be applied around the same physical DOM element or component, which allows the user to define the nested structure.
+
+## Creating a structural directive
+
+A structural directive is a directive class that injects two dependencies:
+
+- [`TemplateRef`](api/core/TemplateRef) gives the directive access to the content of the `<ng-template>` it is applied to.
+- [`ViewContainerRef`](api/core/ViewContainerRef) represents the location in the DOM where the directive can render that template.
+
+The directive controls rendering by creating, or not creating, embedded views from the template in the view container. The complete `SelectDirective` looks like this:
+
+```ts
+import {Directive, TemplateRef, ViewContainerRef, inject, input} from '@angular/core';
+
+export interface DataSource<T> {
+  load(): Promise<T>;
+}
+
+@Directive({
+  selector: '[select]',
+})
+export class SelectDirective {
+  private templateRef = inject(TemplateRef);
+  private viewContainerRef = inject(ViewContainerRef);
+
+  selectFrom = input.required<DataSource<unknown>>();
+
+  async ngOnInit() {
+    const data = await this.selectFrom().load();
+    this.viewContainerRef.createEmbeddedView(this.templateRef, {
+      // Create the embedded view with a context object that contains
+      // the data via the key `$implicit`.
+      $implicit: data,
+    });
+  }
+}
+```
+
+The `selectFrom` input names the data source the directive reads from. It uses [`input.required()`](guide/components/inputs#required-inputs) because the directive can't do anything useful without a data source.
+
+When Angular initializes the directive, it loads the data and then renders the template by calling `createEmbeddedView()`. The second argument is the template's _context object_: values the template can bind to with `let` declarations. Assigning the data to the `$implicit` key makes it the default value that `let-data` (or `let data` in shorthand) receives.
+
+NOTE: This example renders its template once, when the directive initializes. It does not re-render when the bound data source changes.
+
+Once the directive works, consider [adding template type-checking support](#typing-the-directives-context).
+
+HELPFUL: The CLI command [`ng generate directive`](tools/cli/schematics) scaffolds a directive along with its test file.
+
+## Structural directive syntax reference
+
+When you write your own structural directives, use the following syntax:
+
+```ts {hideCopy}
+_: prefix = "( :let | :expression ) (';' | ',')? ( :let | :as | :keyExp )_";
+```
+
+The following patterns describe each portion of the structural directive grammar:
+
+```ts
+as = :export "as" :local ";"?
+keyExp = :key ":"? :expression ("as" :local)? ";"?
+let = "let" :local "=" :export ";"?
+```
+
+| Keyword      | Details                                            |
+| :----------- | :------------------------------------------------- |
+| `prefix`     | HTML attribute key                                 |
+| `key`        | HTML attribute key                                 |
+| `local`      | Local variable name used in the template           |
+| `export`     | Value exported by the directive under a given name |
+| `expression` | Standard Angular expression                        |
+
+### How Angular translates shorthand
+
+Angular translates structural directive shorthand into the normal binding syntax as follows:
+
+| Shorthand                       | Translation                                                     |
+| :------------------------------ | :-------------------------------------------------------------- |
+| `prefix` and naked `expression` | `[prefix]="expression"`                                         |
+| `keyExp`                        | `[prefixKey]="expression"` (The `prefix` is added to the `key`) |
+| `let local`                     | `let-local="export"`                                            |
+
+### Shorthand examples
+
+The following table provides shorthand examples:
+
+| Shorthand                                                             | How Angular interprets the syntax                                                                             |
+| :-------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------ |
+| `*myDir="let item of [1,2,3]"`                                        | `<ng-template myDir let-item [myDirOf]="[1, 2, 3]">`                                                          |
+| `*myDir="let item of [1,2,3] as items; trackBy: myTrack; index as i"` | `<ng-template myDir let-item [myDirOf]="[1,2,3]" let-items="myDirOf" [myDirTrackBy]="myTrack" let-i="index">` |
+| `*ngComponentOutlet="componentClass"`                                 | `<ng-template [ngComponentOutlet]="componentClass">`                                                          |
+| `*ngComponentOutlet="componentClass; inputs: myInputs"`               | `<ng-template [ngComponentOutlet]="componentClass" [ngComponentOutletInputs]="myInputs">`                     |
+| `*myDir="exp as value"`                                               | `<ng-template [myDir]="exp" let-value="myDir">`                                                               |
+
+## Improving template type checking for custom directives
+
+You can improve template type checking for custom directives by adding template guards to your directive definition.
+These guards help the Angular template type checker find mistakes in the template at compile time, which can avoid runtime errors.
+Two different types of guards are possible:
+
+- `ngTemplateGuard_(input)` lets you control how an input expression should be narrowed based on the type of a specific input.
+- `ngTemplateContextGuard` is used to determine the type of the context object for the template, based on the type of the directive itself.
+
+This section provides examples of both kinds of guards.
+For more information, see [Template type checking](tools/cli/template-typecheck 'Template type-checking guide').
+
+### Type narrowing with template guards
+
+A structural directive in a template controls whether that template is rendered at run time. Some structural directives want to perform type narrowing based on the type of input expression.
+
+There are two narrowings which are possible with input guards:
+
+- Narrowing the input expression based on a TypeScript type assertion function.
+- Narrowing the input expression based on its truthiness.
+
+To narrow the input expression by defining a type assertion function:
+
+```ts
+// This directive only renders its template if the actor is a user.
+// You want to assert that within the template, the type of the `actor`
+// expression is narrowed to `User`.
+@Directive(...)
+class ActorIsUser {
+  actor = input<User | Robot>();
+
+  static ngTemplateGuard_actor(dir: ActorIsUser, expr: User | Robot): expr is User {
+    // The return statement is unnecessary in practice, but included to
+    // prevent TypeScript errors.
+    return true;
+  }
+}
+```
+
+Type-checking will behave within the template as if the `ngTemplateGuard_actor` has been asserted on the expression bound to the input.
+
+Some directives only render their templates when an input is truthy. It's not possible to capture the full semantics of truthiness in a type assertion function, so instead a literal type of `'binding'` can be used to signal to the template type-checker that the binding expression itself should be used as the guard:
+
+```ts
+@Directive(...)
+class CustomIf {
+  condition = input.required<boolean>();
+
+  static ngTemplateGuard_condition: 'binding';
+}
+```
+
+The template type-checker will behave as if the expression bound to `condition` was asserted to be truthy within the template.
+
+### Typing the directive's context
+
+If your structural directive provides a context to the instantiated template, you can properly type it inside the template by providing a static `ngTemplateContextGuard` type assertion function. This function can use the type of the directive to derive the type of the context, which is useful when the type of the directive is generic.
+
+For the `SelectDirective` described above, you can implement an `ngTemplateContextGuard` to correctly specify the data type, even if the data source is generic.
+
+```ts
+// Declare an interface for the template context:
+export interface SelectTemplateContext<T> {
+  $implicit: T;
+}
+
+@Directive(...)
+export class SelectDirective<T> {
+  // The directive's generic type `T` will be inferred from the `DataSource` type
+  // passed to the input.
+  selectFrom = input.required<DataSource<T>>();
+
+  // Narrow the type of the context using the generic type of the directive.
+  static ngTemplateContextGuard<T>(dir: SelectDirective<T>, ctx: any): ctx is SelectTemplateContext<T> {
+    // As before the guard body is not used at runtime, and included only to avoid
+    // TypeScript errors.
+    return true;
+  }
+}
+```
+
+## What's next
+
+<docs-pill-row>
+  <docs-pill href="guide/directives/directive-composition-api" title="Directive composition API"/>
+  <docs-pill href="guide/templates/ng-template" title="ng-template"/>
+  <docs-pill href="guide/templates/control-flow" title="Control flow"/>
+</docs-pill-row>
+
+---
+
+### PAGE: Directive composition
+
+# Directive composition API
+
+Angular directives offer a great way to encapsulate reusable behaviors. Directives can apply attributes, CSS classes, and event listeners to an element.
+
+The _directive composition API_ lets you apply directives to a component's host element from _within_ the component TypeScript class.
+
+## Adding directives to a component
+
+You apply directives to a component by adding a `hostDirectives` property to a component's decorator. Such directives are called _host directives_.
+
+In this example, the `MenuBehavior` directive is applied to the host element of `AdminMenu`. This works similarly to applying the `MenuBehavior` to the `<admin-menu>` element in a template.
+
+```ts
+@Component({
+  selector: 'admin-menu',
+  templateUrl: './admin-menu.html',
+  hostDirectives: [MenuBehavior],
+})
+export class AdminMenu {}
+```
+
+When the framework renders a component, Angular also creates an instance of each host directive. The directives' host bindings apply to the component's host element. By default, host directive inputs and outputs are not exposed as part of the component's public API. See [Including inputs and outputs](#including-inputs-and-outputs) below for more information.
+
+Host directives come with the following constraints:
+
+- **Angular applies host directives statically at compile time.** You cannot dynamically add
+  directives at runtime.
+- **Directives used in `hostDirectives` may not specify `standalone: false`.**
+- **Angular ignores the `selector` of directives applied in the `hostDirectives` property.**
+
+## Including inputs and outputs
+
+When you apply `hostDirectives` to your component, the inputs and outputs from the host directives are not included in your component's API by default. You can explicitly include inputs and outputs in your component's API by expanding the entry in `hostDirectives`:
+
+```ts
+@Component({
+  selector: 'admin-menu',
+  templateUrl: './admin-menu.html',
+  hostDirectives: [
+    {
+      directive: MenuBehavior,
+      inputs: ['menuId'],
+      outputs: ['menuClosed'],
+    },
+  ],
+})
+export class AdminMenu {}
+```
+
+By explicitly specifying the inputs and outputs, consumers of the component with `hostDirectives` can bind them in a template:
+
+```angular-html
+<admin-menu menuId="top-menu" (menuClosed)="logMenuClosed()"></admin-menu>
+```
+
+Furthermore, you can alias inputs and outputs from a host directive to customize the API of your component:
+
+```ts
+@Component({
+  selector: 'admin-menu',
+  templateUrl: './admin-menu.html',
+  hostDirectives: [
+    {
+      directive: MenuBehavior,
+      inputs: ['menuId: id'],
+      outputs: ['menuClosed: closed'],
+    },
+  ],
+})
+export class AdminMenu {}
+```
+
+```angular-html
+<admin-menu id="top-menu" (closed)="logMenuClosed()"></admin-menu>
+```
+
+## Adding directives to another directive
+
+You can also add `hostDirectives` to other directives, in addition to components. This enables the transitive aggregation of multiple behaviors.
+
+The following example defines two directives, `Menu` and `Tooltip`, then composes their behavior in `MenuWithTooltip`. Finally, it applies `MenuWithTooltip` to `SpecializedMenuWithTooltip`.
+
+When `SpecializedMenuWithTooltip` is used in a template, it creates instances of all of `Menu`, `Tooltip`, and `MenuWithTooltip`. Each of these directives' host bindings apply to the host element of `SpecializedMenuWithTooltip`.
+
+```ts
+@Directive({/* ... */})
+export class Menu {}
+
+@Directive({/* ... */})
+export class Tooltip {}
+
+// MenuWithTooltip can compose behaviors from multiple other directives
+@Directive({
+  hostDirectives: [Tooltip, Menu],
+})
+export class MenuWithTooltip {}
+
+// CustomWidget can apply the already-composed behaviors from MenuWithTooltip
+@Directive({
+  hostDirectives: [MenuWithTooltip],
+})
+export class SpecializedMenuWithTooltip {}
+```
+
+## Host directive semantics
+
+### Directive execution order
+
+Host directives go through the same lifecycle as components and directives used directly in a template. However, host directives always execute their constructor, lifecycle hooks, and bindings _before_ the component or directive on which they are applied.
+
+The following example shows minimal use of a host directive:
+
+```ts
+@Component({
+  selector: 'admin-menu',
+  templateUrl: './admin-menu.html',
+  hostDirectives: [MenuBehavior],
+})
+export class AdminMenu {}
+```
+
+The order of execution here is:
+
+1. `MenuBehavior` instantiated
+2. `AdminMenu` instantiated
+3. `MenuBehavior` receives inputs (`ngOnInit`)
+4. `AdminMenu` receives inputs (`ngOnInit`)
+5. `MenuBehavior` applies host bindings
+6. `AdminMenu` applies host bindings
+
+This order of operations means that components with `hostDirectives` can override any host bindings specified by a host directive.
+
+This order of operations extends to nested chains of host directives, as shown in the following example.
+
+```ts
+@Directive({...})
+export class Tooltip { }
+
+@Directive({
+  hostDirectives: [Tooltip],
+})
+export class CustomTooltip { }
+
+@Directive({
+  hostDirectives: [CustomTooltip],
+})
+export class EvenMoreCustomTooltip { }
+```
+
+In the example above, the order of execution is:
+
+1. `Tooltip` instantiated
+2. `CustomTooltip` instantiated
+3. `EvenMoreCustomTooltip` instantiated
+4. `Tooltip` receives inputs (`ngOnInit`)
+5. `CustomTooltip` receives inputs (`ngOnInit`)
+6. `EvenMoreCustomTooltip` receives inputs (`ngOnInit`)
+7. `Tooltip` applies host bindings
+8. `CustomTooltip` applies host bindings
+9. `EvenMoreCustomTooltip` applies host bindings
+
+### Dependency injection
+
+A component or directive that specifies `hostDirectives` can inject the instances of those host directives and vice versa.
+
+When applying host directives to a component, both the component and host directives can define providers.
+
+If a component or directive with `hostDirectives` and those host directives both provide the same injection token, the providers defined by class with `hostDirectives` take precedence over providers defined by the host directives.
+
+### Host directive de-duplication
+
+When the same directive appears more than once in the resolved host directive tree, it is automatically de-duplicated rather than throwing an error. Two deterministic rules are used to decide which match survives.
+
+#### Template match takes precedence
+
+If a directive matches an element once through a **template selector** and also appears as a **host directive**, Angular keeps only the template match and discards all host directive matches.
+
+The mental model is that a host directive match represents `Partial<YourDirective>`, a partial application where only the inputs and outputs explicitly listed in `hostDirectives` are exposed, while a template match represents the full directive with its complete public API.
+
+@Directive({selector: '[hoverable]'})
+export class Hoverable {}
+
+```ts
+@Component({
+  selector: 'app-button',
+  hostDirectives: [Hoverable],
+})
+export class Button {}
+```
+
+```angular-html
+<!-- Hoverable is matched by selector AND as a host directive of Button. -->
+<!-- Angular keeps only the selector match, which has the full public API. -->
+<app-button hoverable></app-button>
+```
+
+#### Multiple host directive matches are merged
+
+If the same directive appears **more than once as a host directive**, for example, when two directives both declare a common dependency in their `hostDirectives`, Angular merges all instances into a single directive instance. The input and output mappings from all instances are combined.
+
+This resolves the classic [diamond problem](https://en.wikipedia.org/wiki/Multiple_inheritance#The_diamond_problem) in host directive composition:
+
+```ts
+// A shared behavior that both triggers need
+@Directive({
+  host: {
+    '[attr.data-trigger-id]': 'triggerId()',
+  },
+})
+export class TriggerRef {
+  readonly triggerId = input(`trigger-${crypto.randomUUID()}`);
+}
+
+// Two separate triggers, each declaring TriggerRef as a host directive
+@Directive({
+  selector: '[popoverTrigger]',
+  hostDirectives: [TriggerRef],
+})
+export class PopoverTrigger {
+  readonly triggerRef = inject(TriggerRef);
+}
+
+@Directive({
+  selector: '[dropdownTrigger]',
+  hostDirectives: [TriggerRef],
+})
+export class DropdownTrigger {
+  readonly triggerRef = inject(TriggerRef);
+}
+```
+
+```angular-html
+<!-- Angular keeps one TriggerRef instance, shared by both triggers. -->
+<button popoverTrigger dropdownTrigger>Actions</button>
+```
+
+HELPFUL: Because Angular produces only one instance of the shared directive, both `PopoverTrigger` and `DropdownTrigger` receive the same `TriggerRef` instance when they inject it.
+
+#### Conflicting aliases
+
+When Angular merges duplicate host directive matches it also merges their input and output mappings.
+
+If two instances of the same host directive expose the **same input or output under different aliases**, Angular throws an error at compile time ([NG8024](errors/NG8024)).
+
+```ts
+@Directive({
+  selector: '[popoverTrigger]',
+  hostDirectives: [{directive: TriggerRef, inputs: ['triggerId: popoverTriggerId']}],
+})
+export class PopoverTrigger {}
+
+@Directive({
+  selector: '[dropdownTrigger]',
+  hostDirectives: [
+    {directive: TriggerRef, inputs: ['triggerId: dropdownTriggerId']}, // different alias!
+  ],
+})
+export class DropdownTrigger {}
+```
+
+```angular-html
+<!-- Error: triggerId is exposed as both "popoverTriggerId" and "dropdownTriggerId". -->
+<button popoverTrigger dropdownTrigger></button>
+```
+
+To resolve this, ensure that both paths expose the shared input or output under the same alias, or do not expose it at all.
+
+## What's next
+
+<docs-pill-row>
+  <docs-pill href="guide/directives/structural-directives" title="Structural directives"/>
+  <docs-pill href="guide/components/host-elements" title="Component host elements"/>
+</docs-pill-row>
+
+---
+
+### PAGE: Optimizing images
+
+# Getting started with NgOptimizedImage
+
+The `NgOptimizedImage` directive makes it easy to adopt performance best practices for loading images.
+
+The directive ensures that the loading of the [Largest Contentful Paint (LCP)](https://web.dev/lcp) image is prioritized by:
+
+- Automatically setting the `fetchpriority` attribute on the `<img>` tag
+- Lazy loading other images by default
+- Automatically generating a preconnect link tag in the document head
+- Automatically generating a `srcset` attribute
+- Generating a [preload hint](https://developer.mozilla.org/docs/Web/HTML/Link_types/preload) if app is using SSR
+
+In addition to optimizing the loading of the LCP image, `NgOptimizedImage` enforces a number of image best practices, such as:
+
+- Using [image CDN URLs to apply image optimizations](https://web.dev/image-cdns/#how-image-cdns-use-urls-to-indicate-optimization-options)
+- Preventing layout shift by requiring `width` and `height`
+- Warning if `width` or `height` have been set incorrectly
+- Warning if the image will be visually distorted when rendered
+
+If you're using a background image in CSS, [start here](#how-to-migrate-your-background-image).
+
+NOTE: Although the `NgOptimizedImage` directive was made a stable feature in Angular version 15, it has been backported and is available as a stable feature in versions 13.4.0 and 14.3.0 as well.
+
+## Getting Started
+
+<docs-workflow>
+<docs-step title="Import `NgOptimizedImage` directive">
+Import `NgOptimizedImage` directive from `@angular/common`:
+
+```ts
+import {NgOptimizedImage} from '@angular/common';
+```
+
+and include it into the `imports` array of a standalone component or an NgModule:
+
+```ts
+imports: [
+  NgOptimizedImage,
+  // ...
+],
+```
+
+</docs-step>
+<docs-step title="(Optional) Set up a Loader">
+An image loader is not **required** in order to use NgOptimizedImage, but using one with an image CDN enables powerful performance features, including automatic `srcset`s for your images.
+
+A brief guide for setting up a loader can be found in the [Configuring an Image Loader](#configuring-an-image-loader-for-ngoptimizedimage) section at the end of this page.
+</docs-step>
+<docs-step title="Enable the directive">
+To activate the `NgOptimizedImage` directive, replace your image's `src` attribute with `ngSrc`.
+
+```html
+<img ngSrc="cat.jpg" />
+```
+
+If you're using a [built-in third-party loader](#built-in-loaders), make sure to omit the base URL path from `src`, as that will be prepended automatically by the loader.
+</docs-step>
+<docs-step title="Mark images as `priority`">
+Always mark the [LCP image](https://web.dev/lcp/#what-elements-are-considered) on your page as `priority` to prioritize its loading.
+
+```html
+<img ngSrc="cat.jpg" width="400" height="200" priority />
+```
+
+Marking an image as `priority` applies the following optimizations:
+
+- Sets `fetchpriority=high` (read more about priority hints [here](https://web.dev/priority-hints))
+- Sets `loading=eager` (read more about native lazy loading [here](https://web.dev/browser-level-image-lazy-loading))
+- Automatically generates a [preload link element](https://developer.mozilla.org/docs/Web/HTML/Link_types/preload) if [rendering on the server](guide/ssr).
+
+Angular displays a warning during development if the LCP element is an image that does not have the `priority` attribute. A page’s LCP element can vary based on a number of factors - such as the dimensions of a user's screen, so a page may have multiple images that should be marked `priority`. See [CSS for Web Vitals](https://web.dev/css-web-vitals/#images-and-largest-contentful-paint-lcp) for more details.
+</docs-step>
+<docs-step title="Include Width and Height">
+In order to prevent [image-related layout shifts](https://web.dev/css-web-vitals/#images-and-layout-shifts), NgOptimizedImage requires that you specify a height and width for your image, as follows:
+
+```html
+<img ngSrc="cat.jpg" width="400" height="200" />
+```
+
+For **responsive images** (images which you've styled to grow and shrink relative to the viewport), the `width` and `height` attributes should be the intrinsic size of the image file. For responsive images it's also important to [set a value for `sizes`.](#responsive-images)
+
+For **fixed size images**, the `width` and `height` attributes should reflect the desired rendered size of the image. The aspect ratio of these attributes should always match the intrinsic aspect ratio of the image.
+
+NOTE: If you don't know the size of your images, consider using "fill mode" to inherit the size of the parent container, as described below.
+</docs-step>
+</docs-workflow>
+
+## Using `fill` mode
+
+In cases where you want to have an image fill a containing element, you can use the `fill` attribute. This is often useful when you want to achieve a "background image" behavior. It can also be helpful when you don't know the exact width and height of your image, but you do have a parent container with a known size that you'd like to fit your image into (see "object-fit" below).
+
+When you add the `fill` attribute to your image, you do not need and should not include a `width` and `height`, as in this example:
+
+```html
+<img ngSrc="cat.jpg" fill />
+```
+
+You can use the [object-fit](https://developer.mozilla.org/docs/Web/CSS/object-fit) CSS property to change how the image will fill its container. If you style your image with `object-fit: "contain"`, the image will maintain its aspect ratio and be "letterboxed" to fit the element. If you set `object-fit: "cover"`, the element will retain its aspect ratio, fully fill the element, and some content may be "cropped" off.
+
+See visual examples of the above at the [MDN object-fit documentation.](https://developer.mozilla.org/docs/Web/CSS/object-fit)
+
+You can also style your image with the [object-position property](https://developer.mozilla.org/docs/Web/CSS/object-position) to adjust its position within its containing element.
+
+IMPORTANT: For the "fill" image to render properly, its parent element **must** be styled with `position: "relative"`, `position: "fixed"`, or `position: "absolute"`.
+
+## How to migrate your background image
+
+Here's a simple step-by-step process for migrating from `background-image` to `NgOptimizedImage`. For these steps, we'll refer to the element that has an image background as the "containing element":
+
+1. Remove the `background-image` style from the containing element.
+2. Ensure that the containing element has `position: "relative"`, `position: "fixed"`, or `position: "absolute"`.
+3. Create a new image element as a child of the containing element, using `ngSrc` to enable the `NgOptimizedImage` directive.
+4. Give that element the `fill` attribute. Do not include a `height` and `width`.
+5. If you believe this image might be your [LCP element](https://web.dev/lcp/), add the `priority` attribute to the image element.
+
+You can adjust how the background image fills the container as described in the [Using fill mode](#using-fill-mode) section.
+
+## Using placeholders
+
+### Automatic placeholders
+
+NgOptimizedImage can display an automatic low-resolution placeholder for your image if you're using a CDN or image host that provides automatic image resizing. Take advantage of this feature by adding the `placeholder` attribute to your image:
+
+```html
+<img ngSrc="cat.jpg" width="400" height="200" placeholder />
+```
+
+Adding this attribute automatically requests a second, smaller version of the image using your specified image loader. This small image will be applied as a `background-image` style with a CSS blur while your image loads. If no image loader is provided, no placeholder image can be generated and an error will be thrown.
+
+The default size for generated placeholders is 30px wide. You can change this size by specifying a pixel value in the `IMAGE_CONFIG` provider, as seen below:
+
+```ts
+providers: [
+  {
+    provide: IMAGE_CONFIG,
+    useValue: {
+      placeholderResolution: 40
+    }
+  },
+],
+```
+
+If you want sharp edges around your blurred placeholder, you can wrap your image in a containing `<div>` with the `overflow: hidden` style. As long as the `<div>` is the same size as the image (such as by using the `width: fit-content` style), the "fuzzy edges" of the placeholder will be hidden.
+
+### Data URL placeholders
+
+You can also specify a placeholder using a base64 [data URL](https://developer.mozilla.org/docs/Web/HTTP/Basics_of_HTTP/Data_URLs) without an image loader. The data url format is `data:image/[imagetype];[data]`, where `[imagetype]` is the image format, just as `png`, and `[data]` is a base64 encoding of the image. That encoding can be done using the command line or in JavaScript. For specific commands, see [the MDN documentation](https://developer.mozilla.org/docs/Web/HTTP/Basics_of_HTTP/Data_URLs#encoding_data_into_base64_format). An example of a data URL placeholder with truncated data is shown below:
+
+```html
+<img ngSrc="cat.jpg" width="400" height="200" placeholder="data:image/png;base64,iVBORw0K..." />
+```
+
+However, large data URLs increase the size of your Angular bundles and slow down page load. If you cannot use an image loader, the Angular team recommends keeping base64 placeholder images smaller than 4KB and using them exclusively on critical images. In addition to decreasing placeholder dimensions, consider changing image formats or parameters used when saving images. At very low resolutions, these parameters can have a large effect on file size.
+
+### Non-blurred placeholders
+
+By default, NgOptimizedImage applies a CSS blur effect to image placeholders. To render a placeholder without blur, provide a `placeholderConfig` argument with an object that includes the `blur` property, set to false. For example:
+
+```html
+<img ngSrc="cat.jpg" width="400" height="200" placeholder [placeholderConfig]="{blur: false}" />
+```
+
+## Adjusting image styling
+
+Depending on the image's styling, adding `width` and `height` attributes may cause the image to render differently. `NgOptimizedImage` warns you if your image styling renders the image at a distorted aspect ratio.
+
+You can typically fix this by adding `height: auto` or `width: auto` to your image styles. For more information, see the [web.dev article on the `<img>` tag](https://web.dev/patterns/web-vitals-patterns/images/img-tag).
+
+If the `width` and `height` attribute on the image are preventing you from sizing the image the way you want with CSS, consider using `fill` mode instead, and styling the image's parent element.
+
+## Performance Features
+
+NgOptimizedImage includes a number of features designed to improve loading performance in your app. These features are described in this section.
+
+### Add resource hints
+
+A [`preconnect` resource hint](https://web.dev/preconnect-and-dns-prefetch) for your image origin ensures that the LCP image loads as quickly as possible.
+
+Preconnect links are automatically generated for domains provided as an argument to a [loader](#optional-set-up-a-loader). If an image origin cannot be automatically identified, and no preconnect link is detected for the LCP image, `NgOptimizedImage` will warn during development. In that case, you should manually add a resource hint to `index.html`. Within the `<head>` of the document, add a `link` tag with `rel="preconnect"`, as shown below:
+
+```html
+<link rel="preconnect" href="https://my.cdn.origin" />
+```
+
+To disable preconnect warnings, inject the `PRECONNECT_CHECK_BLOCKLIST` token:
+
+```ts
+
+providers: [
+{provide: PRECONNECT_CHECK_BLOCKLIST, useValue: 'https://your-domain.com'}
+],
+
+```
+
+See more information on automatic preconnect generation [here](#why-is-a-preconnect-element-not-being-generated-for-my-image-domain).
+
+### Request images at the correct size with automatic `srcset`
+
+Defining a [`srcset` attribute](https://developer.mozilla.org/docs/Web/API/HTMLImageElement/srcset) ensures that the browser requests an image at the right size for your user's viewport, so it doesn't waste time downloading an image that's too large. `NgOptimizedImage` generates an appropriate `srcset` for the image, based on the presence and value of the [`sizes` attribute](https://developer.mozilla.org/docs/Web/API/HTMLImageElement/sizes) on the image tag.
+
+#### Fixed-size images
+
+If your image should be "fixed" in size (i.e. the same size across devices, except for [pixel density](https://web.dev/codelab-density-descriptors/)), there is no need to set a `sizes` attribute. A `srcset` can be generated automatically from the image's width and height attributes with no further input required.
+
+Example srcset generated:
+
+```html
+<img ... srcset="image-400w.jpg 1x, image-800w.jpg 2x" />
+```
+
+#### Responsive images
+
+If your image should be responsive (i.e. grow and shrink according to viewport size), then you will need to define a [`sizes` attribute](https://developer.mozilla.org/docs/Web/API/HTMLImageElement/sizes) to generate the `srcset`.
+
+If you haven't used `sizes` before, a good place to start is to set it based on viewport width. For example, if your CSS causes the image to fill 100% of viewport width, set `sizes` to `100vw` and the browser will select the image in the `srcset` that is closest to the viewport width (after accounting for pixel density). If your image is only likely to take up half the screen (ex: in a sidebar), set `sizes` to `50vw` to ensure the browser selects a smaller image. And so on.
+
+If you find that the above does not cover your desired image behavior, see the documentation on [advanced sizes values](#advanced-sizes-values).
+
+Note that for lazy-loaded images, `NgOptimizedImage` automatically prepends `"auto"` to the provided `sizes` value. This is an optimization that increases the accuracy of srcset selection on browsers which support `sizes="auto"`, and is ignored by browsers which do not. Images that are not lazy-loaded, such as `priority` images, keep the `sizes` value as provided.
+
+By default, the responsive breakpoints are:
+
+`[16, 32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 1080, 1200, 1920, 2048, 3840]`
+
+If you would like to customize these breakpoints, you can do so using the `IMAGE_CONFIG` provider:
+
+```ts
+providers: [
+  {
+    provide: IMAGE_CONFIG,
+    useValue: {
+      breakpoints: [16, 48, 96, 128, 384, 640, 750, 828, 1080, 1200, 1920]
+    }
+  },
+],
+```
+
+If you would like to manually define a `srcset` attribute, you can provide your own using the `ngSrcset` attribute:
+
+```html
+<img ngSrc="hero.jpg" ngSrcset="100w, 200w, 300w" 

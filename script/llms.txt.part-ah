@@ -1,0 +1,808 @@
+the resource's loader function.
+const firstName = computed(() => {
+  if (userResource.hasValue()) {
+    // `hasValue` serves 2 purposes:
+    // - It acts as type guard to strip `undefined` from the type
+    // - It protects against reading a throwing `value` when the resource is in error state
+    return userResource.value().firstName;
+  }
+
+  // fallback in case the resource value is `undefined` or if the resource is in error state
+  return undefined;
+});
+```
+
+The `resource` function accepts a `ResourceOptions` object with two main properties: `params` and `loader`.
+
+The `params` property defines a reactive computation that produces a parameter value. Whenever signals read in this computation change, the resource produces a new parameter value, similar to `computed`.
+
+The `loader` property defines a `ResourceLoader`— an async function that retrieves some state. The resource calls the loader every time the `params` computation produces a new value, passing that value to the loader. See [Resource loaders](#resource-loaders) below for more details.
+
+`Resource` has a `value` signal that contains the results of the loader.
+
+## Resource loaders
+
+When creating a resource, you specify a `ResourceLoader`. This loader is an async function that accepts a single parameter— a `ResourceLoaderParams` object— and returns a value.
+
+The `ResourceLoaderParams` object contains three properties: `params`, `previous`, and `abortSignal`.
+
+| Property      | Description                                                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `params`      | The value of the resource's `params` computation.                                                                                                |
+| `previous`    | An object with a `status` property, containing the previous `ResourceStatus`.                                                                    |
+| `abortSignal` | An [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal). See [Aborting requests](#aborting-requests) below for details. |
+
+If the `params` computation returns `undefined`, the loader function does not run and the resource status becomes `'idle'`.
+
+### Streaming resources
+
+Some asynchronous data sources produce multiple values over time instead of returning a single result. Examples include WebSockets, Server-Sent Events (SSE), and Firestore `onSnapshot` listeners.
+
+Use `stream` for these continuously updating data sources. Unlike `loader`, which resolves once for each request, `stream` returns a signal whose value can continue to update as new data becomes available.
+
+Use `loader` for one-time asynchronous operations, such as fetching data from an HTTP endpoint.
+
+In this example, `userUpdates` simulates an external source such as a WebSocket or SSE connection.
+
+```typescript
+const userUpdates = signal({value: 'Alice'});
+
+const userResource = resource({
+  stream: () => userUpdates,
+});
+
+// Simulate a new value arriving from the external data source:
+userUpdates.set({value: 'Bob'});
+```
+
+### Aborting requests
+
+A resource aborts an outstanding loading operation if the `params` computation changes while the resource is loading.
+
+You can use the `abortSignal` in `ResourceLoaderParams` to respond to aborted requests. For example, the native `fetch` function accepts an `AbortSignal`:
+
+```typescript
+const userId: Signal<string> = getUserId();
+
+const userResource = resource({
+  params: () => ({id: userId()}),
+  loader: ({params, abortSignal}): Promise<User> => {
+    // fetch cancels any outstanding HTTP requests when the given `AbortSignal`
+    // indicates that the request has been aborted.
+    return fetch(`users/${params.id}`, {signal: abortSignal}).then((res) => res.json());
+  },
+});
+```
+
+See [`AbortSignal` on MDN](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) for more details on request cancellation with `AbortSignal`.
+
+### Reloading
+
+You can programmatically trigger a resource's `loader` by calling the `reload` method.
+
+```typescript
+const userId: Signal<string> = getUserId();
+
+const userResource = resource({
+  params: () => ({id: userId()}),
+  loader: ({params}) => fetchUser(params),
+});
+
+// ...
+
+userResource.reload();
+```
+
+## Resource status
+
+The resource object has several signal properties for reading the status of the asynchronous loader.
+
+| Property    | Description                                                                                                                                                                                  |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `value`     | The most recent value of the resource, or the default value (`undefined` unless `defaultValue` is set) if no value has been received. Reading `value()` throws when the status is `'error'`. |
+| `hasValue`  | Whether the resource has a value.                                                                                                                                                            |
+| `error`     | The most recent error encountered while running the resource's loader, or `undefined` if no error has occurred.                                                                              |
+| `isLoading` | Whether the resource loader is currently running.                                                                                                                                            |
+| `status`    | The resource's specific `ResourceStatus`, as described below.                                                                                                                                |
+
+The `status` signal provides a specific `ResourceStatus` that describes the state of the resource using a string constant.
+
+| Status        | `value()`         | Description                                                                  |
+| ------------- | :---------------- | ---------------------------------------------------------------------------- |
+| `'idle'`      | `undefined`       | The resource has no valid request and the loader has not run.                |
+| `'error'`     | Throws an error   | The loader has encountered an error.                                         |
+| `'loading'`   | `undefined`       | The loader is running as a result of the `params` value changing.            |
+| `'reloading'` | Previous value    | The loader is running as a result of calling the resource's `reload` method. |
+| `'resolved'`  | Resolved value    | The loader has completed.                                                    |
+| `'local'`     | Locally set value | The resource's value has been set locally via `.set()` or `.update()`        |
+
+You can use this status information to conditionally display user interface elements, such as loading indicators and error messages.
+
+## Caching `resource` data with SSR
+
+When an application renders on the server, a resource loader runs once to produce the initial HTML. During hydration, the browser normally runs the same loader again.
+
+To reuse the server result, provide an `id` for the resource. Angular stores the resolved value in `TransferState` on the server and uses it on the client to initialize the resource in a `'resolved'` state.
+
+```ts
+const userId: Signal<string> = getUserId();
+
+const userResource = resource({
+  params: () => ({id: userId()}),
+  loader: ({params}) => fetchUser(params),
+  id: 'user-unique-id',
+});
+```
+
+The `id` value must be unique within your application and identical on the server and the client so that Angular can match the cached entry to the resource that requested it.
+
+IMPORTANT: Because the cached value is serialized into the page's HTML, avoid setting `id` on resources that load data specific to the user who triggered the server-side render, especially if the rendered HTML can be cached or shared between users.
+
+## Chaining resources
+
+Sometimes one resource depends on the result of another. You can express this dependency using the `chain` function available in the `params` context object.
+
+```typescript
+import {resource} from '@angular/core';
+
+const userResource = resource({
+  params: () => ({id: getUserId()}),
+  loader: ({params}) => fetchUser(params),
+});
+
+const companyResource = resource({
+  params: ({chain}) => chain(userResource)?.companyId,
+  loader: ({params: companyId}) => fetchCompany(companyId),
+});
+```
+
+Here `companyResource` depends on the user's `companyId`, which is only known once `userResource` has loaded. `chain(userResource)` reads the value of `userResource` and automatically propagates its status to `companyResource`:
+
+- If `userResource` is **idle**, `companyResource` also becomes `idle`.
+- If `userResource` is **loading** or **reloading**, `companyResource` enters the `loading` state and its loader does not run. Note that during `reloading`, `chain` does not return the previously resolved value.
+- If `userResource` is in an **error** state, `companyResource` also enters the `error` state.
+- If `userResource` is **resolved** or **local**, `chain` returns its current value, which `companyResource` then uses as its params.
+
+When `chain` propagates a status from `userResource` (`idle`, `loading`, `reloading`, or `error`), the params function does not continue. When `userResource` is `resolved` or `local`, `chain` returns its value, which can itself be `undefined`. The example handles this with `chain(userResource)?.companyId`, so an `undefined` value results in `undefined` params and `companyResource` becomes `idle`.
+
+NOTE: Pass the chained value directly as the params value rather than wrapping it in an object. A params value like `{companyId: undefined}` is still a defined value, so the loader would run with an `undefined` `companyId` instead of the resource becoming `idle`.
+
+### Chaining vs. reading resource values directly
+
+You might be tempted to read a resource's value directly inside `params`:
+
+```typescript {avoid, header: 'reads value() directly without status propagation'}
+const companyResource = resource({
+  params: () => {
+    const user = userResource.value(); // may be undefined
+    return user ? {companyId: user.companyId} : undefined;
+  },
+  loader: ({params}) => fetchCompany(params.companyId),
+});
+```
+
+While this works, returning `undefined` from `params` makes the resource go `idle` rather than reflecting the actual state of the upstream resource. Using `chain` is preferred because it correctly mirrors `loading` and `error` states.
+
+Reach for `chain` only when the downstream resource performs its own async work that depends on the upstream value. If you only need to derive a value synchronously from a resource, use `computed` instead.
+
+## Reactive data fetching with `httpResource`
+
+[`httpResource`](/guide/http/http-resource) is a wrapper around `HttpClient` that gives you the request status and response as signals. It makes HTTP requests through the Angular HTTP stack, including interceptors.
+
+## Resource composition with snapshots
+
+A `ResourceSnapshot` is a structured representation of a resource's current state. Every resource has a `snapshot` property that provides a signal of its current state.
+
+```ts
+const userId: Signal<string> = getUserId();
+
+const userResource = resource({
+  params: () => ({id: userId()}),
+  loader: ({params}) => fetchUser(params),
+});
+
+const userSnapshot = userResource.snapshot;
+```
+
+Each snapshot contains a `status` and either a `value` or an `error`.
+
+### Composing resources with snapshots
+
+IMPORTANT: `resourceFromSnapshots` is [experimental](reference/releases#experimental). It's ready for you to try, but it might change before it is stable.
+
+You can create new resources from snapshots using `resourceFromSnapshots`. This enables composition with signal APIs like `computed` and `linkedSignal` to transform resource behavior.
+
+```ts
+import {
+  Component,
+  input,
+  linkedSignal,
+  resourceFromSnapshots,
+  Resource,
+  ResourceSnapshot,
+} from '@angular/core';
+import {httpResource} from '@angular/common/http';
+
+function withPreviousValue<T>(input: Resource<T>): Resource<T> {
+  const derived = linkedSignal<ResourceSnapshot<T>, ResourceSnapshot<T>>({
+    source: input.snapshot,
+    computation: (snap, previous) => {
+      if (snap.status === 'loading' && previous && previous.value.status !== 'error') {
+        // When the input resource enters loading state, we keep the value
+        // from its previous state, if any.
+        return {status: 'loading' as const, value: previous.value.value};
+      }
+
+      // Otherwise we simply forward the state of the input resource.
+      return snap;
+    },
+  });
+
+  return resourceFromSnapshots(derived);
+}
+
+@Component({/*... */})
+export class AwesomeProfile {
+  userId = input.required<number>();
+  user = withPreviousValue(httpResource(() => `/user/${this.userId()}`));
+  // When userId changes, user.value() keeps the old user data until the new one loads
+}
+```
+
+---
+
+## CAT: dependency-injection-di
+
+### PAGE: Dependency Injection overview
+
+<docs-decorative-header title="Dependency injection in Angular" imgSrc="adev/src/assets/images/dependency_injection.svg"> <!-- markdownlint-disable-line -->
+
+Dependency Injection (DI) is a design pattern you use to organize and share code across your application by supplying dependencies to a class instead of creating them inside it.
+</docs-decorative-header>
+
+TIP: Check out Angular's [Essentials](essentials/dependency-injection) before diving into this comprehensive guide.
+
+As an application grows, developers often need to reuse and share functionality across different parts of the codebase. [Dependency Injection (DI)](https://en.wikipedia.org/wiki/Dependency_injection) helps you achieve this by allowing you to provide dependencies to a class instead of creating them directly inside it. This makes different parts of the application more reusable and easier to manage.
+
+Dependency injection is a popular pattern because it allows developers to address common challenges such as:
+
+- **Improved code maintainability**: Dependency injection promotes a clear separation of concerns, making code easier to refactor and reducing duplication.
+- **Scalability**: You can reuse modular functionality across different parts of an application, making it easier to scale.
+- **Better testing**: DI allows unit tests to use [test doubles](https://en.wikipedia.org/wiki/Test_double) in place of real implementations when needed.
+
+## How does dependency injection work in Angular?
+
+A dependency is any object, value, function, or service that a class requires to work but does not create itself. Instead, you provide it from the outside, creating a clear relationship between different parts of the application.
+
+You interact with a dependency injection system in two main ways:
+
+- You can _provide_, or make available, values.
+- You can _inject_, or ask for, those values as dependencies.
+
+In this context, "values" can refer to any JavaScript value, including objects, functions, or class instances. Common types of injected dependencies include:
+
+- **Configuration values**: Environment-specific constants, API URLs, feature flags, etc.
+- **Factories**: Functions that create objects or values based on runtime conditions
+- **Services**: Classes that provide common functionality, business logic, or state
+
+Angular components and directives automatically participate in DI, meaning that you can inject dependencies into them and make them available for injection.
+
+## What are services?
+
+An Angular _service_ is a TypeScript class decorated with `@Service`, which allows you to inject an instance of the class as a dependency. Services are the most common way of sharing data and functionality across an application.
+
+Common types of services include:
+
+- **Data clients:** Abstracts the details of making requests to a server for data retrieval and mutation
+- **State management:** Defines state shared across multiple components or pages
+- **Authentication and authorization:** Manages user authentication, token storage, and access control
+- **Logging and error handling:** Establishes a common API for logging or communicating error states to the user
+- **Event handling and dispatch:** Handles events or notifications that are not associated with a specific component, or for dispatching events and notifications to components, following the [observer pattern](https://en.wikipedia.org/wiki/Observer_pattern)
+- **Utility functions:** Offers reusable utility functions like data formatting, validation, or calculations
+
+The following example declares a service named `AnalyticsLogger`:
+
+```ts
+import {Service} from '@angular/core';
+
+@Service()
+export class AnalyticsLogger {
+  trackEvent(category: string, value: string) {
+    console.log('Analytics event logged:', {
+      category,
+      value,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+```
+
+NOTE: The `@Service` makes this service available throughout your entire application as a singleton. This is the recommended approach for most services.
+
+HELPFUL: The [`@Service`](guide/di/creating-and-using-services#using-the-service-vs-injectable-decorator) decorator is an ergonomic shorthand for `@Injectable({providedIn: 'root'})`.
+
+## Injecting dependencies with `inject()`
+
+You can inject dependencies using Angular's `inject()` function.
+
+Here is an example of a navigation bar that injects `AnalyticsLogger` and Angular `Router` service to allow users to navigate to a different page while tracking the event.
+
+```angular-ts
+import {Component, inject} from '@angular/core';
+import {Router} from '@angular/router';
+import {AnalyticsLogger} from './analytics-logger';
+
+@Component({
+  selector: 'app-navbar',
+  template: `<a href="#" (click)="navigateToDetail($event)">Detail Page</a>`,
+})
+export class Navbar {
+  private router = inject(Router);
+  private analytics = inject(AnalyticsLogger);
+
+  navigateToDetail(event: Event) {
+    event.preventDefault();
+    this.analytics.trackEvent('navigation', '/details');
+    this.router.navigate(['/details']);
+  }
+}
+```
+
+### Where can `inject()` be used?
+
+You can inject dependencies during construction of a component, directive, or service. The call to [`inject`](/api/core/inject) can appear in either the `constructor` or in a field initializer. Here are some common examples:
+
+```ts
+@Component(/* ... */)
+export class MyComponent {
+  // ✅ In class field initializer
+  private service = inject(MyService);
+
+  // ✅ In constructor body
+  private anotherService: MyService;
+
+  constructor() {
+    this.anotherService = inject(MyService);
+  }
+}
+```
+
+```ts
+@Directive({...})
+export class MyDirective {
+  // ✅ In class field initializer
+  private element = inject(ElementRef);
+}
+```
+
+```ts
+import {Service, inject} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+
+@Service()
+export class MyService {
+  // ✅ In a service
+  private http = inject(HttpClient);
+}
+```
+
+```ts
+export const authGuard = () => {
+  // ✅ In a route guard
+  const auth = inject(AuthService);
+  return auth.isAuthenticated();
+};
+```
+
+Angular uses the term "injection context" to describe any place in your code where you can call [`inject`](/api/core/inject). While component, directive, and service construction is the most common, see [injection contexts](/guide/di/dependency-injection-context) for more details.
+
+For more information, see the [inject API docs](api/core/inject#usage-notes).
+
+## Next steps
+
+Now that you understand the fundamentals of dependency injection in Angular, you're ready to learn how to create your own services.
+
+The next guide, [Creating and using services](guide/di/creating-and-using-services), will show you:
+
+- How to create a service with the Angular CLI or manually
+- How the `providedIn: 'root'` pattern works
+- How to inject services into components and other services
+
+This covers the most common use case for services in Angular applications.
+
+---
+
+### PAGE: Creating and using services
+
+# Creating and using services
+
+Services are reusable pieces of code that you can share across your Angular application. You commonly use them to handle data fetching, business logic, or other functionality that multiple components need to access.
+
+## Creating a service
+
+You can create a service using the [Angular CLI](tools/cli) with the following command:
+
+```bash
+ng generate service CUSTOM_NAME
+```
+
+This command creates a dedicated `CUSTOM_NAME.ts` file in your `src` directory.
+
+You can also manually create a service by adding the `@Service()` decorator to a TypeScript class. This tells Angular that you can use the class as an injectable dependency.
+
+The following example defines a service that allows users to add and retrieve data:
+
+```ts {header: "src/app/basic-data-store.ts"}
+import {Service} from '@angular/core';
+
+@Service()
+export class BasicDataStore {
+  private data: string[] = [];
+
+  addData(item: string): void {
+    this.data.push(item);
+  }
+
+  getData(): string[] {
+    return [...this.data];
+  }
+}
+```
+
+## How services become available
+
+Services are provisioned at the root level by default. When a service is provided globally, Angular guarantees three main benefits:
+
+- **Singleton Instance:** Creates a single, shared instance for the entire application.
+- **Global Availability:** Automatically accessible anywhere without manual provider registration.
+- **Tree-shakability:** Ensures the service is excluded from the final production bundle if your code never explicitly uses it.
+
+### Using the `@Service` vs `@Injectable` decorator
+
+The `@Service` decorator serves as a modern, ergonomic shorthand for the traditional `@Injectable({ providedIn: 'root' })` syntax.
+
+Use this quick reference to decide which decorator fits your scenario:
+
+| Feature / Requirement                         | `@Service` | `@Injectable`                           |
+| --------------------------------------------- | ---------- | --------------------------------------- |
+| **`inject()` function support**               | Yes        | Yes                                     |
+| **Constructor-based DI**                      | ❌ No      | Yes                                     |
+| **Implicit root singleton provider**          | Yes        | ❌ No (requires `{providedIn: 'root'}`) |
+| **Advanced provider keys (`useClass`, etc.)** | ❌ No      | Yes                                     |
+| **Custom initialization factories**           | Yes        | Yes                                     |
+| **Non-root scopes (`platform`, etc.)**        | ❌ No      | Yes                                     |
+
+### Replacing the implementation with a factory
+
+If you need to control how the singleton is created, for example, to swap in a different implementation depending on the environment, pass a `factory` function.
+
+The factory runs in an [injection context](guide/di/dependency-injection-context), so you can use [`inject()`](api/core/inject) inside it to read other dependencies.
+
+The following `Analytics` service is a no-op locally so events don't pollute the console during development. In production, the factory reads an `ANALYTICS_ENABLED` token and returns a `GoogleAnalytics` subclass that forwards events to the real tracker:
+
+```ts {header: "src/app/analytics.ts"}
+import {inject, InjectionToken, Service} from '@angular/core';
+import {ANALYTICS_ENABLED} from './token';
+
+@Service({
+  factory: () => (inject(ANALYTICS_ENABLED) ? new GoogleAnalytics() : new Analytics()),
+})
+export class Analytics {
+  track(event: string, payload?: Record<string, unknown>) {
+    // No-op by default.
+  }
+}
+
+class GoogleAnalytics extends Analytics {
+  override track(event: string, payload?: Record<string, unknown>) {
+    // Dispatches an analytics event to Google Analytics
+  }
+}
+```
+
+NOTE: The `factory` option replaces the `useClass`, `useValue`, `useExisting`, and `useFactory` options of `@Injectable`. If you need any of those, keep using `@Injectable`.
+
+### Opting out of automatic provisioning
+
+By default, `@Service` provides the class at the root injector. If you want to provide it manually, for example, to scope it to a specific route or component, set `autoProvided: false`:
+
+```ts {header: "src/app/analytics-logger.ts"}
+import {Service} from '@angular/core';
+
+@Service({autoProvided: false})
+export class AnalyticsLogger {
+  trackEvent(name: string) {
+    console.log('event:', name);
+  }
+}
+```
+
+You are then responsible for adding the service to a `providers` array, just like with a plain `@Injectable()`:
+
+### When to use `@Service` vs `@Injectable`
+
+Reach for `@Service` when you are creating a new singleton class that uses `inject()` for its dependencies. Keep using `@Injectable` when you need any of the following:
+
+- **Constructor-based dependency injection.** `@Service` only supports the [`inject()`](api/core/inject) function.
+- **Advanced provider configuration** such as `useClass`, `useValue`, `useExisting`, or `useFactory`. `@Service` exposes a single `factory` option instead.
+- **Non-root scopes** such as `providedIn: 'platform'`.
+
+## Injecting a service
+
+Once you've created a service with `providedIn: 'root'`, you can inject it anywhere in your application using the `inject()` function from `@angular/core`.
+
+### Injecting into a component
+
+```angular-ts
+import {Component, inject} from '@angular/core';
+import {BasicDataStore} from './basic-data-store';
+
+@Component({
+  selector: 'app-example',
+  template: `
+    <div>
+      <p>{{ dataStore.getData() }}</p>
+      <button (click)="dataStore.addData('More data')">Add more data</button>
+    </div>
+  `,
+})
+export class Example {
+  dataStore = inject(BasicDataStore);
+}
+```
+
+### Injecting into another service
+
+```ts
+import {inject, Service} from '@angular/core';
+import {AdvancedDataStore} from './advanced-data-store';
+
+@Service()
+export class BasicDataStore {
+  private advancedDataStore = inject(AdvancedDataStore);
+  private data: string[] = [];
+
+  addData(item: string): void {
+    this.data.push(item);
+  }
+
+  getData(): string[] {
+    return [...this.data, ...this.advancedDataStore.getData()];
+  }
+}
+```
+
+## Next steps
+
+While `providedIn: 'root'` covers most use cases, Angular also provides additional ways you can configure services for more specialized scenarios:
+
+- **Component-specific instances** - When components need their own isolated service instances
+- **Manual configuration** - For services that require runtime configuration
+- **Factory providers** - For dynamic service creation based on runtime conditions
+- **Value providers** - For providing configuration objects or constants
+
+You can learn more about these advanced patterns in the next guide: [defining dependency providers](/guide/di/defining-dependency-providers).
+
+---
+
+### PAGE: Defining dependency providers
+
+# Defining dependency providers
+
+Angular provides two ways to make services available for injection:
+
+1. **Automatic provision** - Using `providedIn` in the `@Injectable` decorator, the [`@Service`](guide/di/creating-and-using-services#using-the-service-vs-injectable-decorator) decorator, or by providing a factory in the `InjectionToken` configuration
+2. **Manual provision** - Using the `providers` array in components, directives, routes, or application config
+
+In the [previous guide](/guide/di/creating-and-using-services), you learned how to create services using `providedIn: 'root'`, which handles most common use cases. This guide explores additional patterns for both automatic and manual provider configuration.
+
+## Automatic provision for non-class dependencies
+
+While the `@Injectable` decorator with `providedIn: 'root'` works great for services (classes), you might need to provide other types of values globally - like configuration objects, functions, or primitive values. Angular provides `InjectionToken` for this purpose.
+
+### What is an InjectionToken?
+
+An `InjectionToken` is an object that Angular's dependency injection system uses to uniquely identify values for injection. Think of it as a special key that lets you store and retrieve any type of value in Angular's DI system:
+
+```ts
+import {InjectionToken} from '@angular/core';
+
+// Create a token for a string value
+export const API_URL = new InjectionToken<string>('api.url');
+
+// Create a token for a function
+export const LOGGER = new InjectionToken<(msg: string) => void>('logger.function');
+
+// Create a token for a complex type
+export interface Config {
+  apiUrl: string;
+  timeout: number;
+}
+export const CONFIG_TOKEN = new InjectionToken<Config>('app.config');
+```
+
+NOTE: The string parameter (e.g., `'api.url'`) is a description purely for debugging — Angular identifies tokens by their object reference, not this string.
+
+### InjectionToken with `providedIn: 'root'`
+
+An `InjectionToken` that has a `factory` results in `providedIn: 'root'` by default (but can be overridden via the `providedIn` prop).
+
+```ts {header: "/app/config.token.ts"}
+import {InjectionToken, Component, inject} from '@angular/core';
+
+export interface AppConfig {
+  apiUrl: string;
+  version: string;
+  features: Record<string, boolean>;
+}
+
+// Globally available configuration using providedIn
+export const APP_CONFIG = new InjectionToken<AppConfig>('app.config', {
+  providedIn: 'root',
+  factory: () => ({
+    apiUrl: 'https://api.example.com',
+    version: '1.0.0',
+    features: {
+      darkMode: true,
+      analytics: false,
+    },
+  }),
+});
+
+// No need to add to providers array - available everywhere!
+@Component({
+  selector: 'app-header',
+  template: `<h1>Version: {{ config.version }}</h1>`,
+})
+export class Header {
+  config = inject(APP_CONFIG); // Automatically available
+}
+```
+
+### When to use InjectionToken with factory functions
+
+InjectionToken with factory functions is ideal when you can't use a class but need to provide dependencies globally:
+
+```ts {header: "/app/logger.token.ts"}
+import {InjectionToken, inject} from '@angular/core';
+import {APP_CONFIG} from './config.token';
+
+// Logger function type
+export type LoggerFn = (level: string, message: string) => void;
+
+// Global logger function with dependencies
+export const LOGGER_FN = new InjectionToken<LoggerFn>('logger.function', {
+  providedIn: 'root',
+  factory: () => {
+    const config = inject(APP_CONFIG);
+
+    return (level: string, message: string) => {
+      if (config.features.logging !== false) {
+        console[level](`[${new Date().toISOString()}] ${message}`);
+      }
+    };
+  },
+});
+```
+
+```ts {header: "/app/storage.token.ts"}
+// Providing browser APIs as tokens
+export const LOCAL_STORAGE = new InjectionToken<Storage>('localStorage', {
+  // providedIn: 'root' is configured as the default
+  factory: () => window.localStorage,
+});
+
+export const SESSION_STORAGE = new InjectionToken<Storage>('sessionStorage', {
+  providedIn: 'root',
+  factory: () => window.sessionStorage,
+});
+```
+
+```ts {header: "/app/feature-flags.token.ts"}
+// Complex configuration with runtime logic
+export const FEATURE_FLAGS = new InjectionToken<Map<string, boolean>>('feature.flags', {
+  providedIn: 'root',
+  factory: () => {
+    const flags = new Map<string, boolean>();
+
+    // Parse from environment or URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const enableBeta = urlParams.get('beta') === 'true';
+
+    flags.set('betaFeatures', enableBeta);
+    flags.set('darkMode', true);
+    flags.set('newDashboard', false);
+
+    return flags;
+  },
+});
+```
+
+This approach offers several advantages:
+
+- **No manual provider configuration needed** - Works just like `providedIn: 'root'` for services
+- **Tree-shakeable** - Only included if actually used
+- **Type-safe** - Full TypeScript support for non-class values
+- **Can inject other dependencies** - Factory functions can use `inject()` to access other services
+
+## Understanding manual provider configuration
+
+When you need more control than `providedIn: 'root'` offers, you can manually configure providers. Manual configuration through the `providers` array is useful when:
+
+1. **The service doesn't have `providedIn`** - Services without automatic provision must be manually provided
+2. **You want a new instance** - To create a separate instance at the component/directive level instead of using the shared one
+3. **You need runtime configuration** - When service behavior depends on runtime values
+4. **You're providing non-class values** - Configuration objects, functions, or primitive values
+
+### Example: Service without `providedIn`
+
+```ts
+import {Injectable, Component, inject} from '@angular/core';
+
+// Service without providedIn
+@Injectable()
+export class LocalDataStore {
+  private data: string[] = [];
+
+  addData(item: string) {
+    this.data.push(item);
+  }
+}
+
+// Component must provide it
+@Component({
+  selector: 'app-example',
+  // A provider is required here because the `LocalDataStore` service has no providedIn.
+  providers: [LocalDataStore],
+  template: `...`,
+})
+export class Example {
+  dataStore = inject(LocalDataStore);
+}
+```
+
+### Example: Creating component-specific instances
+
+Services with `providedIn: 'root'` can be overridden at the component level. This ties the instance of the service to the life of a component. As a result, when the component gets destroyed, the provided service is also destroyed as well.
+
+```ts
+import {Injectable, Component, inject} from '@angular/core';
+
+@Injectable({providedIn: 'root'})
+export class DataStore {
+  private data: ListItem[] = [];
+}
+
+// This component gets its own instance
+@Component({
+  selector: 'app-isolated',
+  // Creates new instance of `DataStore` rather than using the root-provided instance.
+  providers: [DataStore],
+  template: `...`,
+})
+export class Isolated {
+  dataStore = inject(DataStore); // Component-specific instance
+}
+```
+
+## Injector hierarchy in Angular
+
+Angular's dependency injection system is hierarchical. When a component requests a dependency, Angular starts with that component's injector and walks up the tree until it finds a provider for that dependency. Each component in your application tree can have its own injector, and these injectors form a hierarchy that mirrors your component tree.
+
+This hierarchy enables:
+
+- **Scoped instances**: Different parts of your app can have different instances of the same service
+- **Override behavior**: Child components can override providers from parent components
+- **Memory efficiency**: Services are only instantiated where needed
+
+In Angular, any element with a component or directive can provide values to all of its descendants.
+
+```mermaid
+graph TD
+    subgraph platform
+        subgraph root
+            direction TB
+            A[SocialApp] --> B[UserProfile]
+            A --> C[FriendList]
+            C --> D[FriendEntry]
+     

@@ -1,0 +1,766 @@
+/>
+```
+
+If the `ngSrcset` attribute is present, `NgOptimizedImage` generates and sets the `srcset` based on the sizes included. Do not include image file names in `ngSrcset` - the directive infers this information from `ngSrc`. The directive supports both width descriptors (e.g. `100w`) and density descriptors (e.g. `1x`).
+
+```html
+<img ngSrc="hero.jpg" ngSrcset="100w, 200w, 300w" sizes="50vw" />
+```
+
+### Disabling automatic srcset generation
+
+To disable srcset generation for a single image, you can add the `disableOptimizedSrcset` attribute on the image:
+
+```html
+<img ngSrc="about.jpg" disableOptimizedSrcset />
+```
+
+### Disabling image lazy loading
+
+By default, `NgOptimizedImage` sets `loading=lazy` for all images that are not marked `priority`. You can disable this behavior for non-priority images by setting the `loading` attribute. This attribute accepts values: `eager`, `auto`, and `lazy`. [See the documentation for the standard image `loading` attribute for details](https://developer.mozilla.org/docs/Web/API/HTMLImageElement/loading#value).
+
+```html
+<img ngSrc="cat.jpg" width="400" height="200" loading="eager" />
+```
+
+### Controlling image decoding
+
+By default, `NgOptimizedImage` sets `decoding="auto"` for all images. This allows the browser to decide the optimal time to decode an image after it has been fetched. When an image is marked as `priority`, Angular automatically sets `decoding="sync"` to ensure the image is decoded and painted as early as possible helping improve **Largest Contentful Paint (LCP)** performance.
+
+You can override the default `auto` for non-priority images by explicitly setting the `decoding` attribute. Priority images always use `decoding="sync"`.  
+[See the documentation for the standard image `decoding` attribute for details](https://developer.mozilla.org/docs/Web/HTML/Element/img#decoding).
+
+```html
+<!-- Default: decoding is 'auto' -->
+<img ngSrc="gallery/landscape.jpg" width="1200" height="800" />
+
+<!-- Decode the image asynchronously to avoid blocking the main thread.-->
+<img ngSrc="gallery/preview.jpg" width="600" height="400" decoding="async" />
+
+<!-- Priority images automatically use decoding="sync" -->
+<img ngSrc="awesome.jpg" width="500" height="625" priority />
+
+<!-- Decode immediately (can block) when you need the pixels right away -->
+<img ngSrc="hero.jpg" width="1600" height="900" decoding="sync" />
+```
+
+**Allowed values**
+
+- `auto` (default): lets the browser choose the optimal strategy.
+- `async`: decodes the image asynchronously, avoiding main‑thread blocking where possible.
+- `sync`: decodes the image immediately; can block rendering but ensures pixels are ready as soon as the image is available.
+
+### Advanced 'sizes' values
+
+You may want to have images displayed at varying widths on differently-sized screens. A common example of this pattern is a grid- or column-based layout that renders a single column on mobile devices, and two columns on larger devices. You can capture this behavior in the `sizes` attribute, using a "media query" syntax, such as the following:
+
+```html
+<img ngSrc="cat.jpg" width="400" height="200" sizes="(max-width: 768px) 100vw, 50vw" />
+```
+
+The `sizes` attribute in the above example says "I expect this image to be 100 percent of the screen width on devices under 768px wide. Otherwise, I expect it to be 50 percent of the screen width.
+
+For additional information about the `sizes` attribute, see [web.dev](https://web.dev/learn/design/responsive-images/#sizes) or [mdn](https://developer.mozilla.org/docs/Web/API/HTMLImageElement/sizes).
+
+## Configuring an image loader for `NgOptimizedImage`
+
+A "loader" is a function that generates an [image transformation URL](https://web.dev/image-cdns/#how-image-cdns-use-urls-to-indicate-optimization-options) for a given image file. When appropriate, `NgOptimizedImage` sets the size, format, and image quality transformations for an image.
+
+`NgOptimizedImage` provides both a generic loader that applies no transformations, as well as loaders for various third-party image services. It also supports writing your own custom loader.
+
+| Loader type                            | Behavior                                                                                                                                                                                                                       |
+| :------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Generic loader                         | The URL returned by the generic loader will always match the value of `src`. In other words, this loader applies no transformations. Sites that use Angular to serve images are the primary intended use case for this loader. |
+| Loaders for third-party image services | The URL returned by the loaders for third-party image services will follow API conventions used by that particular image service.                                                                                              |
+| Custom loaders                         | A custom loader's behavior is defined by its developer. You should use a custom loader if your image service isn't supported by the loaders that come preconfigured with `NgOptimizedImage`.                                   |
+
+Based on the image services commonly used with Angular applications, `NgOptimizedImage` provides loaders preconfigured to work with the following image services:
+
+| Image Service             | Angular API               | Documentation                                                               |
+| :------------------------ | :------------------------ | :-------------------------------------------------------------------------- |
+| Cloudflare Image Resizing | `provideCloudflareLoader` | [Documentation](https://developers.cloudflare.com/images/image-resizing/)   |
+| Cloudinary                | `provideCloudinaryLoader` | [Documentation](https://cloudinary.com/documentation/resizing_and_cropping) |
+| ImageKit                  | `provideImageKitLoader`   | [Documentation](https://docs.imagekit.io/)                                  |
+| Imgix                     | `provideImgixLoader`      | [Documentation](https://docs.imgix.com/)                                    |
+| Netlify                   | `provideNetlifyLoader`    | [Documentation](https://docs.netlify.com/image-cdn/overview/)               |
+
+To use the **generic loader** no additional code changes are necessary. This is the default behavior.
+
+### Built-in Loaders
+
+To use an existing loader for a **third-party image service**, add the provider factory for your chosen service to the `providers` array. In the example below, the Imgix loader is used:
+
+```ts
+providers: [
+  provideImgixLoader('https://my.base.url/'),
+],
+```
+
+The base URL for your image assets should be passed to the provider factory as an argument. For most sites, this base URL should match one of the following patterns:
+
+- <https://yoursite.yourcdn.com>
+- <https://subdomain.yoursite.com>
+- <https://subdomain.yourcdn.com/yoursite>
+
+You can learn more about the base URL structure in the docs of a corresponding CDN provider.
+
+### Custom Loaders
+
+To use a **custom loader**, provide your loader function as a value for the `IMAGE_LOADER` DI token. In the example below, the custom loader function returns a URL starting with `https://example.com` that includes `src`, `width`, and `height` as URL parameters.
+
+```ts
+providers: [
+  {
+    provide: IMAGE_LOADER,
+    useValue: (config: ImageLoaderConfig) => {
+      return `https://example.com/images?src=${config.src}&width=${config.width}&height=${config.height}`;
+    },
+  },
+],
+```
+
+A loader function for the `NgOptimizedImage` directive takes an object with the `ImageLoaderConfig` type (from `@angular/common`) as its argument and returns the absolute URL of the image asset. The `ImageLoaderConfig` object contains the `src` property, and optional `width`, `height`, and `loaderParams` properties.
+
+NOTE: even though the `width` property may not always be present, a custom loader must use it to support requesting images at various widths in order for `ngSrcset` to work properly.
+
+### The `loaderParams` Property
+
+There is an additional attribute supported by the `NgOptimizedImage` directive, called `loaderParams`, which is specifically designed to support the use of custom loaders. The `loaderParams` attribute takes an object with any properties as a value, and does not do anything on its own. The data in `loaderParams` is added to the `ImageLoaderConfig` object passed to your custom loader, and can be used to control the behavior of the loader.
+
+A common use for `loaderParams` is controlling advanced image CDN features.
+
+### Using the `transform` property with built-in loaders
+
+The built-in loaders for Cloudinary, Cloudflare, ImageKit, and Imgix support a special `transform` property within `loaderParams`. This property allows you to apply custom image transformations provided by your CDN.
+
+The `transform` property accepts two formats:
+
+#### String format
+
+Provide transformations as a comma-separated string using your CDN's transformation syntax:
+
+```html
+<img
+  ngSrc="my-image.jpg"
+  width="400"
+  height="300"
+  [loaderParams]="{transform: 'e_grayscale,r_10'}"
+/>
+```
+
+#### Object format
+
+Provide transformations as an object with key-value pairs.
+
+```html
+<img
+  ngSrc="my-image.jpg"
+  width="400"
+  height="300"
+  [loaderParams]="{transform: {e: 'grayscale', r: 10}}"
+/>
+```
+
+NOTE: The `transform` property is not supported by the Netlify loader, as Netlify's image CDN does not provide custom transformation parameters.
+
+### Example custom loader
+
+The following shows an example of a custom loader function. This example function concatenates `src`, `width`, and `height`, and uses `loaderParams` to control a custom CDN feature for rounded corners:
+
+```ts
+const myCustomLoader = (config: ImageLoaderConfig) => {
+  let url = `https://example.com/images/${config.src}?`;
+  let queryParams = [];
+  if (config.width) {
+    queryParams.push(`w=${config.width}`);
+  }
+  if (config.height) {
+    queryParams.push(`h=${config.height}`);
+  }
+  if (config.loaderParams?.roundedCorners) {
+    queryParams.push('mask=corners&corner-radius=5');
+  }
+  return url + queryParams.join('&');
+};
+```
+
+Note that in the above example, we've invented the 'roundedCorners' property name to control a feature of our custom loader. We could then use this feature when creating an image, as follows:
+
+```html
+<img ngSrc="profile.jpg" width="300" height="300" [loaderParams]="{roundedCorners: true}" />
+```
+
+## Frequently Asked Questions
+
+### Does NgOptimizedImage support the `background-image` css property?
+
+The NgOptimizedImage does not directly support the `background-image` css property, but it is designed to easily accommodate the use case of having an image as the background of another element.
+
+For a step-by-step process for migration from `background-image` to `NgOptimizedImage`, see the [How to migrate your background image](#how-to-migrate-your-background-image) section above.
+
+### Why can't I use `src` with `NgOptimizedImage`?
+
+The `ngSrc` attribute was chosen as the trigger for NgOptimizedImage due to technical considerations around how images are loaded by the browser. NgOptimizedImage makes programmatic changes to the `loading` attribute -- if the browser sees the `src` attribute before those changes are made, it will begin eagerly downloading the image file, and the loading changes will be ignored.
+
+### Why is a preconnect element not being generated for my image domain?
+
+Preconnect generation is performed based on static analysis of your application. That means that the image domain must be directly included in the loader parameter, as in the following example:
+
+```ts
+providers: [
+  provideImgixLoader('https://my.base.url/'),
+],
+```
+
+If you use a variable to pass the domain string to the loader, or you're not using a loader, the static analysis will not be able to identify the domain, and no preconnect link will be generated. In this case you should manually add a preconnect link to the document head, as [described above](#add-resource-hints).
+
+### Can I use two different image domains in the same page?
+
+The [image loaders](#configuring-an-image-loader-for-ngoptimizedimage) provider pattern is designed to be as simple as possible for the common use case of having only a single image CDN used within a component. However, it's still very possible to manage multiple image CDNs using a single provider.
+
+To do this, we recommend writing a [custom image loader](#custom-loaders) which uses the [`loaderParams` property](#the-loaderparams-property) to pass a flag that specifies which image CDN should be used, and then invokes the appropriate loader based on that flag.
+
+### Can you add a new built-in loader for my preferred CDN?
+
+For maintenance reasons, we don't currently plan to support additional built-in loaders in the Angular repository. Instead, we encourage developers to publish any additional image loaders as third-party packages.
+
+### Can I use this with the `<picture>` tag
+
+No, but this is on our roadmap, so stay tuned.
+
+If you're waiting on this feature, please upvote the GitHub issue [here](https://github.com/angular/angular/issues/56594).
+
+### How do I find my LCP image with Chrome DevTools?
+
+1. Using the performance tab of the Chrome DevTools, click on the "start profiling and reload page" button on the top left. It looks like a page refresh icon.
+
+2. This will trigger a profiling snapshot of your Angular application.
+
+3. Once the profiling result is available, select "LCP" in the timings section.
+
+4. A summary entry should appear in the panel at the bottom. You can find the LCP element in the row for "related node". Clicking on it will reveal the element in the Elements panel.
+
+<img alt="LCP in the Chrome DevTools" src="assets/images/guide/image-optimization/devtools-lcp.png">
+
+NOTE: This only identifies the LCP element within the viewport of the page you are testing. It is also recommended to use mobile emulation to identify the LCP element for smaller screens.
+
+---
+
+## CAT: signals
+
+### PAGE: Signals overview
+
+<docs-decorative-header title="Angular Signals" imgSrc="adev/src/assets/images/signals.svg"> <!-- markdownlint-disable-line -->
+Angular Signals is a system that granularly tracks how and where your state is used throughout an application, allowing the framework to optimize rendering updates.
+</docs-decorative-header>
+
+TIP: Check out Angular's [Essentials](essentials/signals) before diving into this comprehensive guide.
+
+## What are signals?
+
+A **signal** is a wrapper around a value that notifies interested consumers when that value changes. Signals can contain any value, from primitives to complex data structures.
+
+You read a signal's value by calling its getter function, which allows Angular to track where the signal is used.
+
+Signals may be either _writable_ or _read-only_.
+
+### Writable signals
+
+Writable signals provide an API for updating their values directly. You create writable signals by calling the `signal` function with the signal's initial value:
+
+```ts
+const count = signal(0);
+
+// Signals are getter functions - calling them reads their value.
+console.log('The count is: ' + count());
+```
+
+To change the value of a writable signal, either `.set()` it directly:
+
+```ts
+count.set(3);
+```
+
+or use the `.update()` operation to compute a new value from the previous one:
+
+```ts
+// Increment the count by 1.
+count.update((value) => value + 1);
+```
+
+Writable signals have the type `WritableSignal`.
+
+#### Converting writable signals to readonly
+
+`WritableSignal` provides an `asReadonly()` method that returns a readonly version of the signal. This is useful when you want to expose a signal's value to consumers without allowing them to modify it directly:
+
+```ts
+@Service()
+export class CounterState {
+  // Private writable state
+  private readonly _count = signal(0);
+
+  readonly count = this._count.asReadonly(); // public readonly
+
+  increment() {
+    this._count.update((v) => v + 1);
+  }
+}
+
+@Component({/* ... */})
+export class AwesomeCounter {
+  state = inject(CounterState);
+
+  count = this.state.count; // can read but not modify
+
+  increment() {
+    this.state.increment();
+  }
+}
+```
+
+The readonly signal reflects any changes made to the original writable signal, but cannot be modified using `set()` or `update()` methods.
+
+IMPORTANT: The readonly signals do **not** have any built-in mechanism that would prevent deep-mutation of their value.
+
+### Computed signals
+
+**Computed signals** are read-only signals that derive their value from other signals. You define computed signals using the `computed` function and specifying a derivation:
+
+```typescript
+const count: WritableSignal<number> = signal(0);
+const doubleCount: Signal<number> = computed(() => count() * 2);
+```
+
+The `doubleCount` signal depends on the `count` signal. Whenever `count` updates, Angular knows that `doubleCount` needs to update as well.
+
+#### Computed signals are both lazily evaluated and memoized
+
+`doubleCount`'s derivation function does not run to calculate its value until the first time you read `doubleCount`. The calculated value is then cached, and if you read `doubleCount` again, it will return the cached value without recalculating.
+
+If you then change `count`, Angular knows that `doubleCount`'s cached value is no longer valid, and the next time you read `doubleCount` its new value will be calculated.
+
+As a result, you can safely perform computationally expensive derivations in computed signals, such as filtering arrays.
+
+#### Computed signals are not writable signals
+
+You cannot directly assign values to a computed signal. That is,
+
+```ts
+doubleCount.set(3);
+```
+
+produces a compilation error, because `doubleCount` is not a `WritableSignal`.
+
+#### Computed signal dependencies are dynamic
+
+Only the signals actually read during the derivation are tracked. For example, in this `computed` the `count` signal is only read if the `showCount` signal is true:
+
+```ts
+const showCount = signal(false);
+const count = signal(0);
+const conditionalCount = computed(() => {
+  if (showCount()) {
+    return `The count is ${count()}.`;
+  } else {
+    return 'Nothing to see here!';
+  }
+});
+```
+
+When you read `conditionalCount`, if `showCount` is `false` the "Nothing to see here!" message is returned _without_ reading the `count` signal. This means that if you later update `count` it will _not_ result in a recomputation of `conditionalCount`.
+
+If you set `showCount` to `true` and then read `conditionalCount` again, the derivation will re-execute and take the branch where `showCount` is `true`, returning the message which shows the value of `count`. Changing `count` will then invalidate `conditionalCount`'s cached value.
+
+Note that dependencies can be removed during a derivation as well as added. If you later set `showCount` back to `false`, then `count` will no longer be considered a dependency of `conditionalCount`.
+
+## Reactive contexts
+
+A **reactive context** is a runtime state where Angular monitors signal reads to establish a dependency. The code reading the signal is the _consumer_, and the signal being read is the _producer_.
+
+Angular automatically enters a reactive context when:
+
+- Executing an `effect`, `afterRenderEffect` callback.
+- Evaluating a `computed` signal.
+- Evaluating a `linkedSignal`.
+- Evaluating a `resource`'s params function.
+- Rendering a component template (including bindings in the [host property](guide/components/host-elements#binding-to-the-host-element)).
+
+During these operations, Angular creates a _live_ connection. If a tracked signal changes, Angular will _eventually_ re-run the consumer.
+
+### Asserts the reactive context
+
+Angular provides the `assertNotInReactiveContext` helper function to assert that code is not executing within a reactive context. Pass a reference to the calling function so the error message points to the correct API entry point if the assertion fails. This produces a clearer, more actionable error message than a generic reactive context error.
+
+```ts
+import {assertNotInReactiveContext} from '@angular/core';
+
+function subscribeToEvents() {
+  assertNotInReactiveContext(subscribeToEvents);
+  // Safe to proceed - subscription logic here
+}
+```
+
+### Reading without tracking dependencies
+
+Rarely, you may want to execute code which may read signals within a reactive function such as `computed` or `effect` _without_ creating a dependency.
+
+For example, suppose that when `currentUser` changes, the value of a `counter` should be logged. You could create an `effect` which reads both signals:
+
+```ts
+effect(() => {
+  console.log(`User set to ${currentUser()} and the counter is ${counter()}`);
+});
+```
+
+This example will log a message when _either_ `currentUser` or `counter` changes. However, if the effect should only run when `currentUser` changes, then the read of `counter` is only incidental and changes to `counter` shouldn't log a new message.
+
+You can prevent a signal read from being tracked by calling its getter with `untracked`:
+
+```ts
+effect(() => {
+  console.log(`User set to ${currentUser()} and the counter is ${untracked(counter)}`);
+});
+```
+
+`untracked` is also useful when an effect needs to invoke some external code which shouldn't be treated as a dependency:
+
+```ts
+effect(() => {
+  const user = currentUser();
+  untracked(() => {
+    // If the `loggingService` reads signals, they won't be counted as
+    // dependencies of this effect.
+    this.loggingService.log(`User set to ${user}`);
+  });
+});
+```
+
+### Reactive context and async operations
+
+The reactive context is only active for synchronous code. Any signal reads that occur after an asynchronous boundary will not be tracked as dependencies.
+
+```ts {avoid}
+effect(async () => {
+  const data = await fetchUserData();
+  // Reactive context is lost here - theme() won't be tracked
+  console.log(`User: ${data.name}, Theme: ${theme()}`);
+});
+```
+
+To ensure all signal reads are tracked, read signals before the `await`. This includes passing them as arguments to the awaited function, since arguments are evaluated synchronously:
+
+```ts {prefer}
+effect(async () => {
+  const currentTheme = theme(); // Read before await
+  const data = await fetchUserData();
+  console.log(`User: ${data.name}, Theme: ${currentTheme}`);
+});
+```
+
+```ts {prefer}
+effect(async () => {
+  // Also works: signal is read before await (as function argument)
+  await renderContent(docContent());
+});
+```
+
+## Advanced derivations
+
+While `computed` handles simple readonly derivations, you might find yourself needing a writable state that is dependent on other signals.
+For more information see the [Dependent state with linkedSignal](/guide/signals/linked-signal) guide.
+
+All signal APIs are synchronous— `signal`, `computed`, `input`, etc. However, applications often need to deal with data that is available asynchronously. A `Resource` gives you a way to incorporate async data into your application's signal-based code and still allow you to access its data synchronously. For more information see the [Async reactivity with resources](/guide/signals/resource) guide.
+
+## Executing side effects on non-reactive APIs
+
+Synchronous or asynchronous derivations are recommended when we want to react to state changes. However, this doesn't cover all the possible use cases, and you'll sometimes find yourself in a situation where you need to react to signal changes on non-reactive APIs. Use `effect` or `afterRenderEffect` for those specific use cases. For more information see [Side effects for non-reactive APIs](/guide/signals/effect) guide.
+
+## Reading signals in `OnPush` components
+
+When you read a signal within an `OnPush` component's template, Angular tracks the signal as a dependency of that component. When the value of that signal changes, Angular automatically [marks](api/core/ChangeDetectorRef#markForCheck) the component to ensure it gets updated the next time change detection runs. Refer to the [Skipping component subtrees](best-practices/skipping-subtrees) guide for more information about `OnPush` components.
+
+## Advanced topics
+
+### Signal equality functions
+
+When creating a signal, you can optionally provide an equality function, which will be used to check whether the new value is actually different than the previous one.
+
+```ts
+import {signal} from '@angular/core';
+import isEqual from 'lodash/isEqual';
+
+const data = signal(['test'], {equal: isEqual});
+
+// Even though this is a different array instance, the deep equality
+// function will consider the values to be equal, and the signal won't
+// trigger any updates.
+data.set(['test']);
+```
+
+Equality functions can be provided to both writable and computed signals.
+
+HELPFUL: By default, signals use referential equality ([`Object.is()`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object/is) comparison).
+
+### Type checking signals
+
+You can use `isSignal` to check if a value is a `Signal`:
+
+```ts
+const count = signal(0);
+const doubled = computed(() => count() * 2);
+
+isSignal(count); // true
+isSignal(doubled); // true
+isSignal(42); // false
+```
+
+To specifically check if a signal is writable, use `isWritableSignal`:
+
+```ts
+const count = signal(0);
+const doubled = computed(() => count() * 2);
+
+isWritableSignal(count); // true
+isWritableSignal(doubled); // false
+```
+
+## Using signals with RxJS
+
+See [RxJS interop with Angular signals](ecosystem/rxjs-interop) for details on interoperability between signals and RxJS.
+
+## Debugging signals
+
+Angular DevTools can visualize the signal graph of a component or directive, showing how its signals, computeds, effects, and other reactive nodes depend on each other.
+See [Debug the signal graph](tools/devtools/signals) to learn how to open, read, and inspect the graph.
+
+---
+
+### PAGE: Dependent state with linkedSignal
+
+# Dependent state with `linkedSignal`
+
+You can use the `signal` function to hold some state in your Angular code. Sometimes, this state depends on some _other_ state. For example, imagine a component that lets the user select a shipping method for an order:
+
+```typescript
+@Component({
+  /* ... */
+})
+export class ShippingMethodPicker {
+  shippingOptions: Signal<ShippingMethod[]> = getShippingOptions();
+
+  // Select the first shipping option by default.
+  selectedOption = signal(this.shippingOptions()[0]);
+
+  changeShipping(newOptionIndex: number) {
+    this.selectedOption.set(this.shippingOptions()[newOptionIndex]);
+  }
+}
+```
+
+In this example, the `selectedOption` defaults to the first option, but changes if the user selects another option. But `shippingOptions` is a signal— its value may change! If `shippingOptions` changes, `selectedOption` may contain a value that is no longer a valid option.
+
+**The `linkedSignal` function lets you create a signal to hold some state that is intrinsically _linked_ to some other state.** Revisiting the example above, `linkedSignal` can replace `signal`:
+
+```ts
+@Component({
+  /* ... */
+})
+export class ShippingMethodPicker {
+  shippingOptions: Signal<ShippingMethod[]> = getShippingOptions();
+
+  // Initialize selectedOption to the first shipping option.
+  selectedOption = linkedSignal(() => this.shippingOptions()[0]);
+
+  changeShipping(index: number) {
+    this.selectedOption.set(this.shippingOptions()[index]);
+  }
+}
+```
+
+`linkedSignal` works similarly to `signal` with one key difference— instead of passing a default value, you pass a _computation function_, just like `computed`. When the value of the computation changes, the value of the `linkedSignal` changes to the computation result. This helps ensure that the `linkedSignal` always has a valid value.
+
+The following example shows how the value of a `linkedSignal` can change based on its linked state:
+
+```ts
+const shippingOptions = signal(['Ground', 'Air', 'Sea']);
+const selectedOption = linkedSignal(() => shippingOptions()[0]);
+console.log(selectedOption()); // 'Ground'
+
+selectedOption.set(shippingOptions()[2]);
+console.log(selectedOption()); // 'Sea'
+
+shippingOptions.set(['Email', 'Will Call', 'Postal service']);
+console.log(selectedOption()); // 'Email'
+```
+
+## Accounting for previous state
+
+In some cases, the computation for a `linkedSignal` needs to account for the previous value of the `linkedSignal`.
+
+In the example above, `selectedOption` always updates back to the first option when `shippingOptions` changes. You may, however, want to preserve the user's selection if their selected option is still somewhere in the list. To accomplish this, you can create a `linkedSignal` with a separate _source_ and _computation_:
+
+```ts
+interface ShippingMethod {
+  id: number;
+  name: string;
+}
+
+@Component({
+  /* ... */
+})
+export class ShippingMethodPicker {
+  constructor() {
+    this.changeShipping(2);
+    this.changeShippingOptions();
+    console.log(this.selectedOption()); // {"id":2,"name":"Postal Service"}
+  }
+
+  shippingOptions = signal<ShippingMethod[]>([
+    {id: 0, name: 'Ground'},
+    {id: 1, name: 'Air'},
+    {id: 2, name: 'Sea'},
+  ]);
+
+  selectedOption = linkedSignal<ShippingMethod[], ShippingMethod>({
+    // `selectedOption` is set to the `computation` result whenever this `source` changes.
+    source: this.shippingOptions,
+    computation: (newOptions, previous) => {
+      // If the newOptions contain the previously selected option, preserve that selection.
+      // Otherwise, default to the first option.
+      return newOptions.find((opt) => opt.id === previous?.value.id) ?? newOptions[0];
+    },
+  });
+
+  changeShipping(index: number) {
+    this.selectedOption.set(this.shippingOptions()[index]);
+  }
+
+  changeShippingOptions() {
+    this.shippingOptions.set([
+      {id: 0, name: 'Email'},
+      {id: 1, name: 'Sea'},
+      {id: 2, name: 'Postal Service'},
+    ]);
+  }
+}
+```
+
+When you create a `linkedSignal`, you can pass an object with separate `source` and `computation` properties instead of providing just a computation.
+
+The `source` can be any signal, such as a `computed` or component `input`. The `linkedSignal` updates its value when the `source` changes or when any signal referenced in the `computation` changes, updating its value with the result of the provided `computation`.
+
+The `computation` is a function that receives the new value of `source` and a `previous` object. The `previous` object has two properties— `previous.source` is the previous value of `source`, and `previous.value` is the previous value of the `linkedSignal`. You can use these previous values to decide the new result of the computation.
+
+HELPFUL: When using the `previous` parameter, it is necessary to provide the generic type arguments of `linkedSignal` explicitly. The first generic type corresponds with the type of `source` and the second generic type determines the output type of `computation`.
+
+## Custom equality comparison
+
+`linkedSignal`, as any other signal, can be configured with a custom equality function. This function is used by downstream dependencies to determine if that value of the `linkedSignal` (result of a computation) changed:
+
+```typescript
+const activeUser = signal({id: 123, name: 'Morgan', isAdmin: true});
+
+const activeUserEditCopy = linkedSignal(() => activeUser(), {
+  // Consider the user as the same if it's the same `id`.
+  equal: (a, b) => a.id === b.id,
+});
+
+// Or, if separating `source` and `computation`
+const activeUserEditCopy = linkedSignal({
+  source: activeUser,
+  computation: (user) => user,
+  equal: (a, b) => a.id === b.id,
+});
+```
+
+## Customizing the set operation
+
+Sometimes you may want the `set` and `update` operations of a `linkedSignal` to write back to the source of truth instead of updating the `linkedSignal`'s value directly. You can customize this behavior by passing a `set` function in the options.
+
+The custom `set` function receives two arguments:
+
+1. The new value being set.
+2. A `rawSet` function, which you can invoke to update the `linkedSignal`'s internal state directly (matching the default behavior).
+
+NOTE: Using `rawSet` allows you to update the `linkedSignal`'s value directly. This can be useful to prevent the computation from running, for example if it is an expensive derivation and you already know the result.
+
+### Writing back to a source signal
+
+Consider a component that displays and allows editing temperature in Fahrenheit, but uses a Celsius signal as its source of truth:
+
+```typescript
+const tempC = signal(0);
+const tempF = linkedSignal(() => (tempC() * 9) / 5 + 32, {
+  set: (valF) => tempC.set(((valF - 32) * 5) / 9),
+});
+
+console.log(tempF()); // 32
+
+// Setting Fahrenheit updates Celsius, which reactively updates Fahrenheit
+tempF.set(212);
+console.log(tempC()); // 100
+console.log(tempF()); // 212
+```
+
+### Updating a property inside a parent object
+
+Another common scenario is updating a specific property inside a parent object. The parent is held in a signal, and you link to a nested property:
+
+```typescript
+interface Order {
+  id: number;
+  shippingMethod: string;
+}
+
+const order = signal<Order>({
+  id: 42,
+  shippingMethod: 'Ground',
+});
+
+const shippingMethod = linkedSignal(() => order().shippingMethod, {
+  set: (newMethod) => {
+    // Perform an immutable update to write the change back to the order
+    order.update((currentOrder) => ({
+      ...currentOrder,
+      shippingMethod: newMethod,
+    }));
+  },
+});
+
+console.log(shippingMethod()); // 'Ground'
+
+// Updating the shippingMethod updates the parent order object
+shippingMethod.set('Air');
+console.log(order()); // { id: 42, shippingMethod: 'Air' }
+console.log(shippingMethod()); // 'Air'
+```
+
+---
+
+### PAGE: Async reactivity with resources
+
+# Async reactivity with resources
+
+All signal APIs are synchronous— `signal`, `computed`, `input`, etc. However, applications often need to deal with data that is available asynchronously. A `Resource` gives you a way to incorporate async data into your application's signal-based code and still allow you to access its data synchronously.
+
+You can use a `Resource` to perform any kind of async operation, but the most common use-case for `Resource` is fetching data from a server. The following example creates a resource to fetch some user data.
+
+The easiest way to create a `Resource` is the `resource` function.
+
+```typescript
+import {computed, resource, Signal} from '@angular/core';
+
+const userId: Signal<string> = getUserId();
+
+const userResource = resource({
+  // Define a reactive computation.
+  // The params value recomputes whenever any read signals change.
+  params: () => ({id: userId()}),
+
+  // Define an async loader that retrieves data.
+  // The resource calls this function every time the `params` value changes.
+  loader: ({params}) => fetchUser(params),
+});
+
+// Create a computed signal based on the result of 

@@ -1,0 +1,900 @@
+      | **Examples**                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Type selector      | Matches elements based on their HTML tag name, or node name.                                                    | `profile-photo`               |
+| Attribute selector | Matches elements based on the presence of an HTML attribute and, optionally, an exact value for that attribute. | `[dropzone]` `[type="reset"]` |
+| Class selector     | Matches elements based on the presence of a CSS class.                                                          | `.menu-item`                  |
+
+For attribute values, Angular supports matching an exact attribute value with the equals (`=`)
+operator. Angular does not support other attribute value operators.
+
+Angular component selectors do not support combinators, including
+the [descendant combinator](https://developer.mozilla.org/docs/Web/CSS/Descendant_combinator)
+or [child combinator](https://developer.mozilla.org/docs/Web/CSS/Child_combinator).
+
+Angular component selectors do not support
+specifying [namespaces](https://developer.mozilla.org/docs/Web/SVG/Namespaces_Crash_Course).
+
+### The `:not` pseudo-class
+
+Angular supports [the `:not` pseudo-class](https://developer.mozilla.org/docs/Web/CSS/:not).
+You can append this pseudo-class to any other selector to narrow which elements a component's
+selector matches. For example, you could define a `[dropzone]` attribute selector and prevent
+matching `textarea` elements:
+
+```angular-ts {highlight: [2]}
+@Component({
+  selector: '[dropzone]:not(textarea)',
+  ...
+})
+export class DropZone { }
+```
+
+Angular does not support any other pseudo-classes or pseudo-elements in component selectors.
+
+### Combining selectors
+
+You can combine multiple selectors by concatenating them. For example, you can match `<button>`
+elements that specify `type="reset"`:
+
+```angular-ts {highlight: [2]}
+@Component({
+  selector: 'button[type="reset"]',
+  ...
+})
+export class ResetButton { }
+```
+
+You can also define multiple selectors with a comma-separated list:
+
+```angular-ts {highlight: [2]}
+@Component({
+  selector: 'drop-zone, [dropzone]',
+  ...
+})
+export class DropZone { }
+```
+
+Angular creates a component for each element that matches _any_ of the selectors in the list.
+
+## Choosing a selector
+
+The vast majority of components should use a custom element name as their selector. All custom
+element names should include a hyphen as described
+by [the HTML specification](https://html.spec.whatwg.org/multipage/custom-elements.html#valid-custom-element-name).
+By default, Angular reports an error if it encounters a custom tag name that does not match any
+available components, preventing bugs due to mistyped component names.
+
+See [Advanced component configuration](guide/components/advanced-configuration) for details on
+using [native custom elements](https://developer.mozilla.org/docs/Web/Web_Components) in
+Angular templates.
+
+### Selector prefixes
+
+The Angular team recommends using a short, consistent prefix for all the custom components
+defined inside your project. For example, if you were to build YouTube with Angular, you might
+prefix your components with `yt-`, with components like `yt-menu`, `yt-player`, etc. Namespacing
+your selectors like this makes it immediately clear where a particular component comes from. By
+default, the Angular CLI uses `app-`.
+
+IMPORTANT: Angular uses the `ng` selector prefix for its own framework APIs. Never use `ng` as a selector prefix for your own custom components.
+
+### When to use an attribute selector
+
+You should consider an attribute selector when you want to create a component on a standard native
+element. For example, if you want to create a custom button component, you can take advantage of the
+standard `<button>` element by using an attribute selector:
+
+```angular-ts {highlight: [2]}
+@Component({
+  selector: 'button[yt-upload]',
+   ...
+})
+export class YouTubeUploadButton { }
+```
+
+This approach allows consumers of the component to directly use all the element's standard APIs
+without extra work. This is especially valuable for ARIA attributes such as `aria-label`.
+
+Angular does not report errors when it encounters custom attributes that don't match an available
+component. When using components with attribute selectors, consumers may forget to import the
+component or its NgModule, resulting in the component not rendering.
+See [Importing and using components](guide/components#imports-in-the-component-decorator) for more information.
+
+Components that define attribute selectors should use lowercase, dash-case attributes. You can
+follow the same prefixing recommendation described above.
+
+---
+
+### PAGE: Styling components
+
+# Styling components
+
+TIP: This guide assumes you've already read the [Essentials Guide](essentials). Read that first if you're new to Angular.
+
+Components can optionally include CSS styles that apply to that component's DOM:
+
+```angular-ts {highlight:[4]}
+@Component({
+  selector: 'profile-photo',
+  template: `<img src="profile-photo.jpg" alt="Your profile photo" />`,
+  styles: `
+    img {
+      border-radius: 50%;
+    }
+  `,
+})
+export class ProfilePhoto {}
+```
+
+You can also choose to write your styles in separate files:
+
+```angular-ts {highlight:[4]}
+@Component({
+  selector: 'profile-photo',
+  templateUrl: 'profile-photo.html',
+  styleUrl: 'profile-photo.css',
+})
+export class ProfilePhoto {}
+```
+
+When Angular compiles your component, these styles are emitted with your component's JavaScript
+output. This means that component styles participate in the JavaScript module system. When you
+render an Angular component, the framework automatically includes its associated styles, even when
+lazy-loading a component.
+
+Angular works with any tool that outputs CSS,
+including [Sass](https://sass-lang.com), [Less](https://lesscss.org),
+and [Stylus](https://stylus-lang.com).
+
+## Style scoping
+
+Every component has a **view encapsulation** setting that determines how the framework scopes a
+component's styles. There are four view encapsulation modes: `Emulated`, `ShadowDom`, `ExperimentalIsolatedShadowDom`, and `None`.
+You can specify the mode in the `@Component` decorator:
+
+```angular-ts {highlight:[3]}
+@Component({
+  ...,
+  encapsulation: ViewEncapsulation.None,
+})
+export class ProfilePhoto { }
+```
+
+### ViewEncapsulation.Emulated
+
+By default, Angular uses emulated encapsulation so that a component's styles only apply to elements
+defined in that component's template. In this mode, the framework generates a unique HTML attribute
+for each component instance, adds that attribute to elements in the component's template, and
+inserts that attribute into the CSS selectors defined in your component's styles.
+
+This mode ensures that a component's styles do not leak out and affect other components. However,
+global styles defined outside of a component may still affect elements inside a component with
+emulated encapsulation.
+
+In emulated mode, Angular supports
+the [`:host`](https://developer.mozilla.org/docs/Web/CSS/:host) pseudo-class.
+While the [`:host-context()`](https://developer.mozilla.org/docs/Web/CSS/:host-context) pseudo-class
+is deprecated in modern browsers, Angular's compiler provides full support for it. Both pseudo-classes
+can be used without relying on native
+[Shadow DOM](https://developer.mozilla.org/docs/Web/Web_Components/Using_shadow_DOM).
+During compilation, the framework transforms these pseudo classes into attributes so it doesn't
+comply with these native pseudo classes' rules at runtime (e.g. browser compatibility, specificity). Angular's
+emulated encapsulation mode does not support any other pseudo classes related to Shadow DOM, such
+as `::shadow` or `::part`.
+
+#### `::ng-deep`
+
+Angular's emulated encapsulation mode supports a custom pseudo class, `::ng-deep`.
+**The Angular team strongly discourages new use of `::ng-deep`**. These APIs remain
+exclusively for backwards compatibility.
+
+When a selector contains `::ng-deep`, Angular stops applying view-encapsulation boundaries after that point in the selector. Any part of the selector that follows `::ng-deep` can match elements outside the component’s template.
+
+For example:
+
+- a CSS rule selector like `p a`, using the emulated encapsulation, will match `<a>` elements that are descendants of a `<p>` element,
+  both being within the component's own template.
+
+- A selector like `::ng-deep p a` will match `<a>` elements anywhere in the application, descendants of a `<p>` element anywhere in the application.
+
+  That effectively makes it behave like a global style.
+
+- In `p ::ng-deep a`, Angular requires the `<p>` element to come from the component's own template, but the `<a>` element may be anywhere in the application.
+
+  So, in effect, the `<a>` element may be in the component's template, or in any of its projected or child content.
+
+- With `:host ::ng-deep p a`, both the `<a>` and `<p>` elements must be descendants of the component's host element.
+
+  They can come from the component's template or the views of its child components, but not elsewhere in the app.
+
+### ViewEncapsulation.ShadowDom
+
+This mode scopes styles within a component by
+using [the web standard Shadow DOM API](https://developer.mozilla.org/docs/Web/Web_Components/Using_shadow_DOM).
+When enabling this mode, Angular attaches a shadow root to the component's host element and renders
+the component's template and styles into the corresponding shadow tree.
+
+Styles inside the shadow tree cannot affect elements outside of that shadow tree.
+
+Enabling `ShadowDom` encapsulation, however, impacts more than style scoping. Rendering the
+component in a shadow tree affects event propagation, interaction
+with [the `<slot>` API](https://developer.mozilla.org/docs/Web/Web_Components/Using_templates_and_slots),
+and how browser developer tools show elements. Always understand the full implications of using
+Shadow DOM in your application before enabling this option.
+
+### ViewEncapsulation.ExperimentalIsolatedShadowDom
+
+Behaves as above, except this mode strictly guarantees that _only_ that component's styles apply to elements in the
+component's template. Global styles cannot affect elements in a shadow tree and styles inside the
+shadow tree cannot affect elements outside of that shadow tree.
+
+### ViewEncapsulation.None
+
+This mode disables all style encapsulation for the component. Any styles associated with the
+component behave as global styles.
+
+NOTE: In `Emulated` and `ShadowDom` modes, Angular doesn't 100% guarantee that your component's styles will always override styles coming from outside it.
+It is assumed that these styles have the same specificity as your component's styles in case of collision.
+
+## Defining styles in templates
+
+You can use the `<style>` element in a component's template to define additional styles. The
+component's view encapsulation mode applies to styles defined this way.
+
+Angular does not support bindings inside of style elements.
+
+## Referencing external style files
+
+Component templates can
+use [the `<link>` element](https://developer.mozilla.org/docs/Web/HTML/Element/link) to
+reference CSS files. Additionally, your CSS may
+use [the `@import`at-rule](https://developer.mozilla.org/docs/Web/CSS/@import) to reference
+CSS files. Angular treats these references as _external_ styles. External styles are not affected by
+emulated view encapsulation.
+
+## Namespacing CSS custom properties
+
+Angular can add a prefix to the CSS custom properties (also called CSS variables) that your
+component styles declare and read. Custom properties inherit down the DOM tree, so when something
+outside your application defines a custom property such as `--primary-color` on an ancestor
+element, your components read that value. This matters when your application shares a page with another
+application or with markup you do not control. Angular does not namespace custom properties until
+you ask it to, and an application that owns its page does not need namespacing.
+
+To scope the custom properties in your component styles to your application, add
+[`provideCssVarNamespacing`](api/platform-browser/provideCssVarNamespacing) to your application's
+providers. It uses the application's [`APP_ID`](api/core/APP_ID) as the namespace:
+
+```ts {header: "app.config.ts"}
+import {APP_ID, ApplicationConfig} from '@angular/core';
+import {provideCssVarNamespacing} from '@angular/platform-browser';
+
+export const appConfig: ApplicationConfig = {
+  providers: [{provide: APP_ID, useValue: 'my-app'}, provideCssVarNamespacing()],
+};
+```
+
+Angular prefixes the custom properties in your component styles with that namespace followed by an
+underscore, so `--primary-color` becomes `--my-app_primary-color`. The prefix applies to
+declarations, `var()` references, `@property` rules, and style bindings such as
+`[style.--primary-color]`, including the style bindings a component declares in its `host` object.
+
+`APP_ID` is `ng` unless you set it, so give each application on the page its own `APP_ID`.
+Otherwise, the applications share a prefix and collide again. To use a namespace that differs from
+the application id, pass it to `provideCssVarNamespacing`. Angular appends the underscore itself:
+`provideCssVarNamespacing('my-app_')` produces `--my-app__primary-color`.
+
+Angular namespaces the styles it compiles into a component: the `styles` and `styleUrl` of the
+component, the styles you [write in a `<style>` element](#defining-styles-in-templates) in its
+template, stylesheets its template references with a relative `<link rel="stylesheet">`, and
+the styles of a component that uses `ViewEncapsulation.None`. Angular does not namespace a stylesheet the browser
+loads at runtime, such as a global stylesheet your build configuration lists or an
+[external style](#referencing-external-style-files) that your build does not inline.
+
+Namespacing applies to every component Angular compiles, including the components of the libraries
+you install. When a library's styles read a custom property that a global stylesheet defines, such
+as the properties of a theme, the reference no longer matches, the browser uses the `var()`
+fallback if there is one or otherwise
+[the property's inherited or initial value](https://www.w3.org/TR/css-variables-1/#invalid-variables),
+and nothing reports an error. Before you enable namespacing in an
+existing application, review the custom properties that cross between your global stylesheets and
+your components.
+
+IMPORTANT: Angular rewrites custom property names only in the styles and bindings it compiles.
+Everywhere else keeps the name you write, and nothing reports the mismatch.
+
+Angular does not rewrite the name in:
+
+- Static style attributes, such as `style="--primary-color: red"`, including the `style` entry of a
+  component's `host` object.
+- Object and string style bindings, such as `[style]="{'--primary-color': color}"`,
+  `[style]="'--primary-color: red'"` and `ngStyle`, including the `[style]` entry of a component's
+  `host` object.
+- Custom property names inside a binding's value, such as
+  `[style.border-color]="'var(--primary-color)'"`.
+- Calls to `Renderer2.setStyle`.
+
+Each of these produces a property that your namespaced styles no longer read. Namespace those
+names yourself, as described in
+[Using namespaced properties in TypeScript](#using-namespaced-properties-in-typescript).
+
+### Opting out of namespacing
+
+To declare or read a custom property that Angular does not namespace, such as one defined in a
+global stylesheet, prefix its name with `--global--`. Angular removes `--global` and leaves the
+remaining `--` and the rest of the name unchanged:
+
+```css
+:host {
+  /* Declares --accent-color and reads --brand-color, not --my-app_brand-color. */
+  --global--accent-color: navy;
+  color: var(--global--brand-color);
+}
+```
+
+Write two hyphens after `global`. A single hyphen, as in `--global-brand-color`, does not opt out,
+and Angular namespaces that name like any other. Avoid names that start with `--global-` followed
+by anything but a second hyphen; a future major version is planned to reject them at build time.
+Angular removes `--global` in every application, including applications that never configure a
+namespace.
+
+### Using namespaced properties in TypeScript
+
+Prefer a style binding such as `[style.--primary-color]`, which Angular namespaces for you. When
+you go through a DOM API instead, pass the name you wrote in your styles to
+[`CssVarNamespacer`](api/platform-browser/CssVarNamespacer), including the leading `--`:
+
+```angular-ts {header: "profile-photo.ts"}
+import {Component, ElementRef, inject} from '@angular/core';
+import {CssVarNamespacer} from '@angular/platform-browser';
+
+@Component({
+  selector: 'profile-photo',
+  template: `<img src="profile-photo.jpg" alt="Your profile photo" />`,
+  styles: `
+    img {
+      border: 2px solid var(--primary-color);
+    }
+  `,
+})
+export class ProfilePhoto {
+  private readonly host: HTMLElement = inject(ElementRef).nativeElement;
+  private readonly cssVarNamespacer = inject(CssVarNamespacer);
+
+  setPrimaryColor(color: string): void {
+    this.host.style.setProperty(this.cssVarNamespacer.namespace('--primary-color'), color);
+  }
+}
+```
+
+Use the plain name for a property you declared with `--global--`, since Angular never namespaces
+those. For everything else, `namespace` returns the name unchanged when an application configures
+no namespace, so a library can call it for the custom properties its own styles declare.
+
+---
+
+### PAGE: Accepting data with input properties
+
+# Accepting data with input properties
+
+TIP: This guide assumes you've already read the [Essentials Guide](essentials). Read that first if you're new to Angular. If you're familiar with other web frameworks, input properties are similar to _props_.
+
+When you use a component, you commonly want to pass some data to it. A component specifies the data that it accepts by declaring
+**inputs**:
+
+```ts {highlight:[6]}
+import {Component, input} from '@angular/core';
+
+@Component(/* ... */)
+export class CustomSlider {
+  // Declare an input named 'value' with a default value of zero.
+  value = input(0);
+}
+```
+
+This lets you bind to the property in a template:
+
+```angular-html
+<custom-slider [value]="50" />
+```
+
+If an input has a default value, TypeScript infers the type from the default value:
+
+```ts
+@Component(/* ... */)
+export class CustomSlider {
+  // TypeScript infers that this input is a number, returning InputSignal<number>.
+  value = input(0);
+}
+```
+
+You can explicitly declare a type for the input by specifying a generic parameter to the function.
+
+If an input without a default value is not set, its value is `undefined`:
+
+```ts
+@Component(/* ... */)
+export class CustomSlider {
+  // Produces an InputSignal<number | undefined> because `value` may not be set.
+  value = input<number>();
+}
+```
+
+**Angular records inputs statically at compile-time**. Inputs cannot be added or removed at run-time.
+
+The `input` function has special meaning to the Angular compiler. **You can exclusively call `input` in component and directive property initializers.**
+
+When extending a component class, **inputs are inherited by the child class.**
+
+**Input names are case-sensitive.**
+
+## Reading inputs
+
+The `input` function returns an `InputSignal`. You can read the value by calling the signal:
+
+```ts {highlight:[9]}
+import {Component, input, computed} from '@angular/core';
+
+@Component(/* ... */)
+export class CustomSlider {
+  // Declare an input named 'value' with a default value of zero.
+  value = input(0);
+
+  // Create a computed expression that reads the value input
+  label = computed(() => `The slider's value is ${this.value()}`);
+}
+```
+
+Signals created by the `input` function are read-only.
+
+## Required inputs
+
+You can declare that an input is `required` by calling `input.required` instead of `input`:
+
+```ts {highlight:[4]}
+@Component(/* ... */)
+export class CustomSlider {
+  // Declare a required input named value. Returns an `InputSignal<number>`.
+  value = input.required<number>();
+}
+```
+
+Angular enforces that required inputs _must_ be set when the component is used in a template. If you try to use a component without specifying all of its required inputs, Angular reports an error at build-time.
+
+Required inputs do not automatically include `undefined` in the generic parameter of the returned `InputSignal`.
+
+## Configuring inputs
+
+The `input` function accepts a config object as a second parameter that lets you change the way that input works.
+
+### Input transforms
+
+You can specify a `transform` function to change the value of an input when it's set by Angular.
+
+```ts {highlight:[6]}
+@Component({
+  selector: 'custom-slider',
+  /*...*/
+})
+export class CustomSlider {
+  label = input('', {transform: trimString});
+}
+
+function trimString(value: string | undefined): string {
+  return value?.trim() ?? '';
+}
+```
+
+```angular-html
+<custom-slider [label]="systemVolume" />
+```
+
+In the example above, whenever the value of `systemVolume` changes, Angular runs `trimString` and sets `label` to the result.
+
+The most common use-case for input transforms is to accept a wider range of value types in templates, often including `null` and `undefined`.
+
+**Input transform function must be statically analyzable at build-time.** You cannot set transform functions conditionally or as the result of an expression evaluation.
+
+**Input transform functions should always be [pure functions](https://en.wikipedia.org/wiki/Pure_function).** Relying on state outside the transform function can lead to unpredictable behavior.
+
+#### Type checking
+
+When you specify an input transform, the type of the transform function's parameter determines the types of values that can be set to the input in a template.
+
+```ts
+@Component(/* ... */)
+export class CustomSlider {
+  widthPx = input('', {transform: appendPx});
+}
+
+function appendPx(value: number): string {
+  return `${value}px`;
+}
+```
+
+In the example above, the `widthPx` input accepts a `number` while the `InputSignal` property returns a `string`.
+
+#### Built-in transformations
+
+Angular includes two built-in transform functions for the two most common scenarios: coercing values to boolean and numbers.
+
+```ts
+import {Component, input, booleanAttribute, numberAttribute} from '@angular/core';
+
+@Component(/* ... */)
+export class CustomSlider {
+  disabled = input(false, {transform: booleanAttribute});
+  value = input(0, {transform: numberAttribute});
+}
+```
+
+`booleanAttribute` imitates the behavior of standard HTML [boolean attributes](https://developer.mozilla.org/docs/Glossary/Boolean/HTML), where the
+_presence_ of the attribute indicates a "true" value. However, Angular's `booleanAttribute` treats the literal string `"false"` as the boolean `false`.
+
+`numberAttribute` attempts to parse the given value to a number, producing `NaN` if parsing fails.
+
+### Input aliases
+
+You can specify the `alias` option to change the name of an input in templates.
+
+```ts {highlight:[3]}
+@Component(/* ... */)
+export class CustomSlider {
+  value = input(0, {alias: 'sliderValue'});
+}
+```
+
+```angular-html
+<custom-slider [sliderValue]="50" />
+```
+
+This alias does not affect usage of the property in TypeScript code.
+
+While you should generally avoid aliasing inputs for components, this feature can be useful for renaming properties while preserving an alias for the original name or for avoiding collisions with the name of native DOM element properties.
+
+## Model inputs
+
+**Model inputs** are a special type of input that enable a component to propagate new values back to its parent component.
+
+When creating a component, you can define a model input similarly to how you create a standard input.
+
+Both types of input allow someone to bind a value into the property. However, **model inputs allow the component author to write values into the property**. If the property is bound with a two-way binding, the new value propagates to that binding.
+
+```ts
+@Component(/* ... */)
+export class CustomSlider {
+  // Define a model input named "value".
+  value = model(0);
+
+  increment() {
+    // Update the model input with a new value, propagating the value to any bindings.
+    this.value.update((oldValue) => oldValue + 10);
+  }
+}
+
+@Component({
+  /* ... */
+  // Using the two-way binding syntax means that any changes to the slider's
+  // value automatically propagate back to the `volume` signal.
+  // Note that this binding uses the signal *instance*, not the signal value.
+  template: `<custom-slider [(value)]="volume" />`,
+})
+export class MediaControls {
+  // Create a writable signal for the `volume` local state.
+  volume = signal(0);
+}
+```
+
+In the above example, the `CustomSlider` can write values into its `value` model input, which then propagates those values back to the `volume` signal in `MediaControls`. This binding keeps the values of `value` and `volume` in sync. Notice that the binding passes the `volume` signal instance, not the _value_ of the signal.
+
+In other respects, model inputs work similarly to standard inputs. You can read the value by calling the signal function, including in [reactive contexts](guide/signals#reactive-contexts) like `computed` and `effect`.
+
+See [Two-way binding](guide/templates/two-way-binding) for more details on two-way binding in templates.
+
+### Two-way binding with plain properties
+
+You can bind a plain JavaScript property to a model input.
+
+```angular-ts
+@Component({
+  /* ... */
+  // `value` is a model input.
+  // The parenthesis-inside-square-brackets syntax (aka "banana-in-a-box") creates a two-way binding
+  template: '<custom-slider [(value)]="volume" />',
+})
+export class MediaControls {
+  protected volume = 0;
+}
+```
+
+In the example above, the `CustomSlider` can write values into its `value` model input, which then propagates those values back to the `volume` property in `MediaControls`. This binding keeps the values of `value` and `volume` in sync.
+
+### Implicit `change` events
+
+When you declare a model input in a component or directive, Angular automatically creates a corresponding [output](guide/components/outputs) for that model. The output's name is the model input's name suffixed with "Change".
+
+```ts
+@Directive(/* ... */)
+export class CustomCheckbox {
+  // This automatically creates an output named "checkedChange".
+  // Can be subscribed to using `(checkedChange)="handler()"` in the template.
+  checked = model(false);
+}
+```
+
+Angular emits this change event whenever you write a new value into the model input by calling its `set` or `update` methods.
+
+See [Custom events with outputs](guide/components/outputs) for more details on outputs.
+
+### Customizing model inputs
+
+You can mark a model input as [required](#required-inputs) or provide an [alias](#input-aliases) in the same way as a standard input.
+
+Model inputs do not support input transforms.
+
+### When to use model inputs
+
+Use model inputs when you want a component to support two-way binding. This is typically appropriate when a component exists to modify a value based on user interaction. Most commonly, custom form controls, such as a date picker or combobox, should use model inputs for their primary value.
+
+## Choosing input names
+
+Avoid choosing input names that collide with properties on DOM elements like HTMLElement. Name collisions introduce confusion about whether the bound property belongs to the component or the DOM element.
+
+Avoid adding prefixes for component inputs like you would with component selectors. Since a given element can only host one component, any custom properties can be assumed to belong to the component.
+
+## Declaring inputs with the `@Input` decorator
+
+TIP: While the Angular team recommends using the signal-based `input` function for new projects, the original decorator-based `@Input` API remains fully supported.
+
+You can alternatively declare component inputs by adding the `@Input` decorator to a property:
+
+```ts {highlight:[3]}
+@Component(/* ... */)
+export class CustomSlider {
+  @Input() value = 0;
+}
+```
+
+Binding to an input is the same in both signal-based and decorator-based inputs:
+
+```angular-html
+<custom-slider [value]="50" />
+```
+
+### Customizing decorator-based inputs
+
+The `@Input` decorator accepts a config object that lets you change the way that input works.
+
+#### Required inputs {#required-inputs-decorator}
+
+You can specify the `required` option to enforce that a given input must always have a value.
+
+```ts {highlight:[3]}
+@Component(/* ... */)
+export class CustomSlider {
+  @Input({required: true}) value = 0;
+}
+```
+
+If you try to use a component without specifying all of its required inputs, Angular reports an error at build-time.
+
+#### Input transforms {#input-transforms-decorator}
+
+You can specify a `transform` function to change the value of an input when it's set by Angular. This transform function works identically to transform functions for signal-based inputs described above.
+
+```ts {highlight:[6]}
+@Component({
+  selector: 'custom-slider',
+  ...
+})
+export class CustomSlider {
+  @Input({transform: trimString}) label = '';
+}
+
+function trimString(value: string | undefined) {
+  return value?.trim() ?? '';
+}
+```
+
+#### Input aliases {#input-aliases-decorator}
+
+You can specify the `alias` option to change the name of an input in templates.
+
+```ts {highlight:[3]}
+@Component(/* ... */)
+export class CustomSlider {
+  @Input({alias: 'sliderValue'}) value = 0;
+}
+```
+
+```angular-html
+<custom-slider [sliderValue]="50" />
+```
+
+The `@Input` decorator also accepts the alias as its first parameter in place of the config object.
+
+Input aliases work the same way as for signal-based inputs described above.
+
+### Inputs with getters and setters
+
+When using decorator-based inputs, a property implemented with a getter and setter can be an input:
+
+```ts
+export class CustomSlider {
+  @Input()
+  get value(): number {
+    return this.internalValue;
+  }
+
+  set value(newValue: number) {
+    this.internalValue = newValue;
+  }
+
+  private internalValue = 0;
+}
+```
+
+You can even create a _write-only_ input by only defining a public setter:
+
+```ts
+export class CustomSlider {
+  @Input()
+  set value(newValue: number) {
+    this.internalValue = newValue;
+  }
+
+  private internalValue = 0;
+}
+```
+
+**Prefer using input transforms instead of getters and setters** if possible.
+
+Avoid complex or costly getters and setters. Angular may invoke an input's setter multiple times, which may negatively impact application performance if the setter performs any costly behaviors, such as DOM manipulation.
+
+## Specify inputs in the `@Component` decorator
+
+In addition to the `@Input` decorator, you can also specify a component's inputs with the `inputs` property in the `@Component` decorator. This can be useful when a component inherits a property from a base class:
+
+```ts {highlight:[4]}
+// `CustomSlider` inherits the `disabled` property from `BaseSlider`.
+@Component({
+  ...,
+  inputs: ['disabled'],
+})
+export class CustomSlider extends BaseSlider { }
+```
+
+You can additionally specify an input alias in the `inputs` list by putting the alias after a colon in the string:
+
+```ts {highlight:[4]}
+// `CustomSlider` inherits the `disabled` property from `BaseSlider`.
+@Component({
+  ...,
+  inputs: ['disabled: sliderDisabled'],
+})
+export class CustomSlider extends BaseSlider { }
+```
+
+---
+
+### PAGE: Custom events with output
+
+# Custom events with outputs
+
+TIP: This guide assumes you've already read the [Essentials Guide](essentials). Read that first if you're new to Angular.
+
+Angular components can define custom events by assigning a property to the `output` function:
+
+```ts {highlight:[5]}
+@Component({
+  /*...*/
+})
+export class ExpandablePanel {
+  panelClosed = output<void>();
+}
+```
+
+```angular-html
+<expandable-panel (panelClosed)="savePanelState()" />
+```
+
+The `output` function returns an `OutputEmitterRef`. You can emit an event by calling the `emit` method on the `OutputEmitterRef`:
+
+```ts
+this.panelClosed.emit();
+```
+
+Angular refers to properties initialized with the `output` function as **outputs**. You can use outputs to raise custom events, similar to native browser events like `click`.
+
+**Angular custom events do not bubble up the DOM**.
+
+**Output names are case-sensitive.**
+
+When extending a component class, **outputs are inherited by the child class.**
+
+The `output` function has special meaning to the Angular compiler. **You can exclusively call `output` in component and directive property initializers.**
+
+## Emitting event data
+
+You can pass event data when calling `emit`:
+
+```ts
+// You can emit primitive values.
+this.valueChanged.emit(7);
+
+// You can emit custom event objects
+this.thumbDropped.emit({
+  pointerX: 123,
+  pointerY: 456,
+});
+```
+
+When defining an event listener in a template, you can access the event data from the `$event` variable:
+
+```angular-html
+<custom-slider (valueChanged)="logValue($event)" />
+```
+
+Receive the event data in the parent component:
+
+```ts
+@Component({
+ /*...*/
+})
+export class App {
+  logValue(value: number) {
+    ...
+  }
+}
+
+```
+
+## Customizing output names
+
+The `output` function accepts a parameter that lets you specify a different name for the event in a template:
+
+```ts
+@Component(/* ... */)
+export class CustomSlider {
+  changed = output({alias: 'valueChanged'});
+}
+```
+
+```angular-html
+<custom-slider (valueChanged)="saveVolume()" />
+```
+
+This alias does not affect usage of the property in TypeScript code.
+
+While you should generally avoid aliasing outputs for components, this feature can be useful for renaming properties while preserving an alias for the original name or for avoiding collisions with the name of native DOM events.
+
+## Subscribing to outputs programmatically
+
+When creating a component dynamically, you can programmatically subscribe to output events
+from the component instance. The `OutputRef` type includes a `subscribe` method:
+
+```ts
+const someComponentRef: ComponentRef<SomeComponent> = viewContainerRef.createComponent(/*...*/);
+
+someComponentRef.instance.someEventProperty.subscribe((eventData) => {
+  console.log(eventData);
+});
+```
+
+Angular automatically cleans up event subscriptions when it destroys components with subscribers. Alternatively, you can manually unsubscribe from an event. The `subscribe` function returns an `OutputRefSubscription` with an `unsubscribe` method:
+
+```ts
+const eventSubscription = someComponent.someEventProperty.subscribe((eventData) => {
+  console.log(eventData);
+});
+
+// ...
+
+eventSubscription.unsubscribe();
+```
+
+## Choosing event names
+
+Avoid choosing output names that collide with events on DOM elements like HTMLElement. Name collisions introduce confusion about whether the bound property belongs to the component or the DOM element.
+
+Avoid adding prefixes for component outputs like you would with component selectors. Since a given element can only host one component, any custom properties can be assumed to belong to the compo
